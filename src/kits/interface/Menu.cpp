@@ -3255,8 +3255,9 @@ draw_snake_join(BView* target, BPoint offset, int32 firstColumn,
 	const BRect item = join.selected;
 	const bool superOnLeft = superFrame.left + superFrame.right
 		< bounds.left + bounds.right;
-	if (superOnLeft ? superFrame.right >= bounds.left
-			: superFrame.left <= bounds.right) {
+	// beside the superitem; a menu may overlap it by a pixel (the Deskbar's)
+	if (superOnLeft ? superFrame.right > bounds.left + 1
+			: superFrame.left < bounds.right - 1) {
 		return;
 	}
 
