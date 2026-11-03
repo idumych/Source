@@ -44,6 +44,15 @@ their own border, so a selected item can open through it into the band.
 |---|---|
 | ![The Deskbar's menu with ZSnake from its button down to Preferences and Keymap](docs/zsnake/deskbar.png) | ![Tracker's desktop context menu with ZSnake](docs/zsnake/tracker.png) |
 
+Under the Renku theme from [Power Theme](https://github.com/idumych/power-theme),
+the path takes the theme's fire orange from the Deskbar's button down to
+the selected item. The theme draws selected items' borders in the same
+orange as their fill, so the path is one solid shape:
+
+| Deskbar | The whole desktop |
+|---|---|
+| ![ZSnake in the Deskbar under the Renku theme](docs/zsnake/deskbar-renku.png) | ![The Renku theme's desktop with the Deskbar's ZSnake](docs/zsnake/deskbar-renku-full.png) |
+
 The setting is a `zsnake` flag in `menu_info`, in the struct's padding, so its
 size doesn't change; app_server saves it with the other menu settings. The
 Deskbar's button takes the selection colour while its menu is open.
