@@ -40,6 +40,10 @@ their own border, so a selected item can open through it into the band.
 |---|---|
 | ![Appearance's Look and feel tab with the ZSnake checkbox](docs/zsnake/appearance.png) | ![The same menus with ZSnake off](docs/zsnake/off.png) |
 
+| Deskbar: from the button, through the Be menu, into a submenu | Tracker's desktop menu |
+|---|---|
+| ![The Deskbar's menu with ZSnake from its button down to Preferences and Keymap](docs/zsnake/deskbar.png) | ![Tracker's desktop context menu with ZSnake](docs/zsnake/tracker.png) |
+
 The setting is a `zsnake` flag in `menu_info`, in the struct's padding, so its
 size doesn't change; app_server saves it with the other menu settings. The
 Deskbar's button takes the selection colour while its menu is open.
@@ -47,9 +51,12 @@ Deskbar's button takes the selection colour while its menu is open.
 Tested on a RenkuOS nightly (hrev60072+398) in QEMU with this branch's libbe
 and a test app: joins down, up, past the supermenu's end and flipped left,
 four levels deep; ZSnake off unchanged; the Appearance switch, Defaults and
-Revert, picked up by newly started apps. Not yet run: app_server saving the
-setting across reboots and the Deskbar button, which need an image built
-from this branch; and a gcc2 build.
+Revert, picked up by newly started apps. This branch's Deskbar and Tracker
+(with its libbe and libtracker) were run in place of the system's, with the
+flag forced on in a test build because the nightly's app_server doesn't keep
+it: the Deskbar button and Be menu, its submenus, and Tracker's desktop menu.
+Not yet run: app_server saving the setting across reboots, which needs an
+image built from this branch; and a gcc2 build.
 
 Contributing
 -------------------
