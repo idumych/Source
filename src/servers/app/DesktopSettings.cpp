@@ -76,6 +76,7 @@ DesktopSettingsPrivate::_SetDefaults()
 		// look of the separator (R5: (0, 1, 2), default 0)
 	fMenuInfo.click_to_open = true; // always true
 	fMenuInfo.triggers_always_shown = false;
+	fMenuInfo.zsnake = false;
 
 	fWorkspacesColumns = 2;
 	fWorkspacesRows = 2;
@@ -267,6 +268,10 @@ DesktopSettingsPrivate::_Load()
 				fMenuInfo.triggers_always_shown = triggersAlwaysShown;
 			}
 
+			bool zsnake;
+			if (settings.FindBool("zsnake", &zsnake) == B_OK)
+				fMenuInfo.zsnake = zsnake;
+
 			// scrollbars
 			bool proportional;
 			if (settings.FindBool("proportional", &proportional) == B_OK)
@@ -445,6 +450,7 @@ DesktopSettingsPrivate::Save(uint32 mask)
 			settings.AddBool("click to open", fMenuInfo.click_to_open);
 			settings.AddBool("triggers always shown",
 				fMenuInfo.triggers_always_shown);
+			settings.AddBool("zsnake", fMenuInfo.zsnake);
 
 			settings.AddBool("proportional", fScrollBarInfo.proportional);
 			settings.AddBool("double arrows", fScrollBarInfo.double_arrows);
