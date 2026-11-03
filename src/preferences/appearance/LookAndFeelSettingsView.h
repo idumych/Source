@@ -52,6 +52,9 @@ private:
 			bool				_CompositedDesktop();
 			void				_SetCompositedDesktop(bool composited);
 
+			bool				_ZSnake();
+			void				_SetZSnake(bool zsnake);
+
 private:
 			DecorInfoUtility	fDecorUtility;
 
@@ -66,6 +69,8 @@ private:
 			FakeScrollBar*		fArrowStyleSingle;
 			FakeScrollBar*		fArrowStyleDouble;
 
+			BCheckBox*			fZSnakeCheckBox;
+
 			BString				fSavedDecor;
 			BString				fCurrentDecor;
 
@@ -76,6 +81,7 @@ private:
 
 			BCheckBox*			fCompositedCheckBox;
 			bool				fSavedComposited;
+			bool				fSavedZSnake : 1;
 };
 
 
