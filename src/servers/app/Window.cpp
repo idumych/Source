@@ -721,6 +721,9 @@ Window::ReloadDecor()
 	}
 
 	stack->SetDecorator(decorator);
+	// It must draw to the buffer that is shown when compositing.
+	if (fBufferInterface.IsSet())
+		decorator->SetDrawingEngine(stack->TopLayerWindow()->GetDrawingEngine());
 
 	fWindowBehaviour.SetTo(windowBehaviour);
 
@@ -1161,8 +1164,9 @@ Window::SetFocus(bool focus)
 	if (dirty) {
 		dirty->IntersectWith(&fVisibleRegion);
 		if (fBufferInterface.IsSet()) {
-			// nothing has changed for any other window
-			ProcessDirtyRegion(*dirty);
+			// Nothing has changed for any other window, but a stack's
+			// decorator is drawn by its top window.
+			TopLayerStackWindow()->ProcessDirtyRegion(*dirty);
 		} else
 			fDesktop->MarkDirty(*dirty);
 		fRegionPool.Recycle(dirty);

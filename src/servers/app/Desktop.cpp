@@ -1672,7 +1672,8 @@ Desktop::ResizeWindowBy(Window* window, float x, float y)
 		// other windows didn't lose anything
 		newDirtyRegion.IntersectWith(&window->VisibleRegion());
 		exposeRegion.IntersectWith(&window->VisibleRegion());
-		window->ProcessDirtyRegion(newDirtyRegion, exposeRegion);
+		window->TopLayerStackWindow()->ProcessDirtyRegion(newDirtyRegion,
+			exposeRegion);
 	} else
 		MarkDirty(newDirtyRegion, exposeRegion);
 	_SetBackground(background);
@@ -3637,7 +3638,8 @@ Desktop::RebuildAndRedrawAfterWindowChange(Window* changedWindow,
 
 		// Only this window has something new to draw. What it left behind
 		// comes from the other windows' buffers.
-		changedWindow->ProcessDirtyRegion(dirty, dirty);
+		// In a stack, only the top window draws.
+		changedWindow->TopLayerStackWindow()->ProcessDirtyRegion(dirty, dirty);
 		fCompositor->Composite(dirty);
 		return;
 	}
