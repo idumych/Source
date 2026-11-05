@@ -38,6 +38,7 @@
 #include "ServerApp.h"
 #include "ServerWindow.h"
 #include "WindowBehaviour.h"
+#include "WindowBuffer.h"
 #include "Workspace.h"
 #include "WorkspacesView.h"
 
@@ -80,6 +81,7 @@ Window::Window(const BRect& frame, const char *name,
 
 	fVisibleRegion(),
 	fVisibleContentRegion(),
+	fBufferReady(false),
 	fDirtyRegion(),
 
 	fContentRegion(),
@@ -176,6 +178,9 @@ Window::~Window()
 	DetachFromWindowStack(false);
 
 	gDecorManager.CleanupForWindow(this);
+
+	if (fBufferInterface.IsSet())
+		fDrawingEngine->SetHWInterface(NULL);
 }
 
 
@@ -197,11 +202,70 @@ Window::SetClipping(BRegion* stillAvailableOnScreen)
 
 	// start from full region (as if the window was fully visible)
 	GetFullRegion(&fVisibleRegion);
+
+	if (fBufferInterface.IsSet()) {
+		fCompositeRegion = fVisibleRegion;
+		fOnScreenRegion = fVisibleRegion;
+		fOnScreenRegion.IntersectWith(stillAvailableOnScreen);
+
+		BRect frame = fCompositeRegion.Frame();
+		fBufferInterface->SetFrame(frame);
+
+		std::vector<::Decorator::ShapeRect> shape;
+		if (::Decorator* decorator = Decorator())
+			decorator->GetShape(shape);
+		if (shape.empty()) {
+			::Decorator::ShapeRect rect = { fFrame, 0, 0, 0, 0 };
+			shape.push_back(rect);
+		}
+		fShape.SetTo(shape, fCompositeRegion, fLook != kDesktopWindowLook
+			&& fFeel != kDesktopWindowFeel && fLook != B_NO_BORDER_WINDOW_LOOK
+			&& (fFlags & kWindowScreenFlag) == 0);
+
+		// The buffer can't be drawn to above or left of the screen, but other
+		// windows don't matter anymore: the window draws everything else.
+		BRegion drawable(BRect(0, 0, 65535, 65535));
+		fVisibleRegion.IntersectWith(&drawable);
+
+		fVisibleContentRegionValid = false;
+		fEffectiveDrawingRegionValid = false;
+
+		// If the decorator has grown or shrunk at the left top corner, the
+		// contents of the buffer are in the wrong place.
+		BPoint offset = frame.LeftTop() - fFrame.LeftTop();
+		if (offset != fBufferOffset) {
+			fBufferOffset = offset;
+			if (fBufferReady)
+				ProcessDirtyRegion(fVisibleRegion);
+		}
+		return;
+	}
+
 	// clip to region still available on screen
 	fVisibleRegion.IntersectWith(stillAvailableOnScreen);
 
 	fVisibleContentRegionValid = false;
 	fEffectiveDrawingRegionValid = false;
+}
+
+
+void
+Window::GetOnScreenContentRegion(BRegion* region)
+{
+	if (!fBufferInterface.IsSet()) {
+		*region = VisibleContentRegion();
+		return;
+	}
+
+	GetContentRegion(region);
+	region->IntersectWith(&fOnScreenRegion);
+}
+
+
+void
+Window::SetBufferInterface(WindowBufferHWInterface* interface)
+{
+	fBufferInterface.SetTo(interface);
 }
 
 
@@ -788,6 +852,13 @@ Window::RedrawDirtyRegion()
 
 		fRegionPool.Recycle(dirtyContentRegion);
 		fRegionPool.Recycle(exposeContentRegion);
+
+		if (fBufferInterface.IsSet() && !fBufferReady) {
+			fBufferReady = true;
+			// including the shadow
+			BRegion bounds(fShape.Bounds());
+			fBufferInterface->InvalidateRegion(bounds);
+		}
 	}
 
 	// reset the dirty region, since
@@ -1089,7 +1160,11 @@ Window::SetFocus(bool focus)
 		dirty = fRegionPool.GetRegion(decorator->GetFootprint());
 	if (dirty) {
 		dirty->IntersectWith(&fVisibleRegion);
-		fDesktop->MarkDirty(*dirty);
+		if (fBufferInterface.IsSet()) {
+			// nothing has changed for any other window
+			ProcessDirtyRegion(*dirty);
+		} else
+			fDesktop->MarkDirty(*dirty);
 		fRegionPool.Recycle(dirty);
 	}
 

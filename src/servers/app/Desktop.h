@@ -50,6 +50,7 @@ class BMessage;
 
 class DecorAddOn;
 class DrawingEngine;
+class Compositor;
 class HWInterface;
 class ServerApp;
 class Window;
@@ -142,6 +143,11 @@ public:
 									{ return fVirtualScreen.DrawingEngine(); }
 			::HWInterface*		HWInterface() const
 									{ return fVirtualScreen.HWInterface(); }
+
+			// NULL if windows draw directly to the screen.
+			Compositor*			GetCompositor() const
+									{ return fCompositor.Get(); }
+			rgb_color			CurrentBackgroundColor();
 
 			void				RebuildAndRedrawAfterWindowChange(
 									Window* window, BRegion& dirty);
@@ -370,6 +376,9 @@ private:
 
 			BRegion				fBackgroundRegion;
 			BRegion				fScreenRegion;
+
+			ObjectDeleter<Compositor>
+								fCompositor;
 
 			Window*				fMouseEventWindow;
 			const Window*		fWindowUnderMouse;

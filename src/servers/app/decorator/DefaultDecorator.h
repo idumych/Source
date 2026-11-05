@@ -19,6 +19,7 @@
 
 
 #include "TabDecorator.h"
+#include "WindowShape.h"
 
 
 class Desktop;
@@ -37,6 +38,8 @@ public:
 
 	virtual void				UpdateColors(DesktopSettings& settings);
 
+	virtual	void				GetShape(std::vector<ShapeRect>& shape) const;
+
 protected:
 	virtual	void				_DrawFrame(BRect rect);
 
@@ -52,6 +55,10 @@ protected:
 									const ComponentColors& color);
 
 private:
+			void				_StrokeCorner(BPoint leftTop, int32 radius,
+									WindowShape::corner_kind kind,
+									rgb_color color);
+			void				_DrawFrameCorners(BRect rect);
  			void				_DrawButtonBitmap(ServerBitmap* bitmap,
  									bool direct, BRect rect);
 			void				_DrawBlendedRect(DrawingEngine *engine,
