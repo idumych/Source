@@ -6,7 +6,7 @@
 #define WINDOW_BUFFER_H
 
 
-#include <AutoDeleter.h>
+#include <OS.h>
 
 #include "HWInterface.h"
 #include "RenderingBuffer.h"
@@ -52,6 +52,7 @@ private:
 			bool				_Reallocate(int32 width, int32 height);
 
 private:
+			area_id				fArea;
 			uint8*				fPixels;
 			int32				fCapacityWidth;
 			int32				fCapacityHeight;

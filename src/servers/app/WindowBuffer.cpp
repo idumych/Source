@@ -6,11 +6,10 @@
 
 #include "WindowBuffer.h"
 
-#include <new>
-#include <stdlib.h>
 #include <string.h>
 
 #include <Accelerant.h>
+#include <OS.h>
 #include <Region.h>
 
 #include "Compositor.h"
@@ -30,6 +29,7 @@ round_up_capacity(int32 size)
 
 WindowBuffer::WindowBuffer()
 	:
+	fArea(-1),
 	fPixels(NULL),
 	fCapacityWidth(0),
 	fCapacityHeight(0),
@@ -43,7 +43,8 @@ WindowBuffer::WindowBuffer()
 
 WindowBuffer::~WindowBuffer()
 {
-	free(fPixels);
+	if (fArea >= 0)
+		delete_area(fArea);
 }
 
 
@@ -139,8 +140,15 @@ WindowBuffer::_Reallocate(int32 width, int32 height)
 	int32 capacityWidth = round_up_capacity(max_c(width, fCapacityWidth));
 	int32 capacityHeight = round_up_capacity(max_c(height, fCapacityHeight));
 
-	uint8* pixels = (uint8*)calloc(capacityHeight, (size_t)capacityWidth * 4);
-	if (pixels == NULL)
+	// Windows come and go, and can be large. An area of its own gives the
+	// memory back to the system when it is no longer needed; the heap would
+	// keep it. It also doesn't use any memory until it is drawn to.
+	uint8* pixels;
+	size_t size = (size_t)capacityHeight * capacityWidth * 4;
+	area_id area = create_area("window buffer", (void**)&pixels,
+		B_ANY_ADDRESS, (size + B_PAGE_SIZE - 1) & ~(size_t)(B_PAGE_SIZE - 1),
+		B_NO_LOCK, B_READ_AREA | B_WRITE_AREA);
+	if (area < 0)
 		return false;
 
 	if (fPixels != NULL) {
@@ -149,9 +157,10 @@ WindowBuffer::_Reallocate(int32 width, int32 height)
 			memcpy(pixels + (size_t)y * capacityWidth * 4,
 				fPixels + (size_t)y * fCapacityWidth * 4, bytes);
 		}
-		free(fPixels);
+		delete_area(fArea);
 	}
 
+	fArea = area;
 	fPixels = pixels;
 	fCapacityWidth = capacityWidth;
 	fCapacityHeight = capacityHeight;
