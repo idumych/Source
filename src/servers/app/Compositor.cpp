@@ -71,6 +71,11 @@ Compositor::Composite(const BRegion& damage)
 		if (window->IsHidden() || !window->IsBufferReady())
 			continue;
 
+		// The others in a stack are behind it, with the same outline. They
+		// would only make its shadow and corners darker.
+		if (window->TopLayerStackWindow() != window)
+			continue;
+
 		const WindowShape& shape = window->Shape();
 		if (!remaining.Intersects(shape.Bounds()))
 			continue;

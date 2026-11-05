@@ -2274,6 +2274,12 @@ Window::AddWindowToStack(Window* window)
 	}
 
 	window->SetLook(window->Look(), &dirty);
+	// Every window has its own buffer when compositing: the decorator must
+	// draw to the one that is shown.
+	if (fBufferInterface.IsSet() && decorator != NULL) {
+		decorator->SetDrawingEngine(
+			TopLayerStackWindow()->GetDrawingEngine());
+	}
 	fDesktop->RebuildAndRedrawAfterWindowChange(TopLayerStackWindow(), dirty);
 	window->SetFocus(window->IsFocus());
 	return true;
@@ -2323,7 +2329,15 @@ Window::MoveToTopStackLayer()
 	decorator->SetDrawingEngine(GetDrawingEngine());
 	SetLook(Look(), NULL);
 	decorator->SetTopTab(PositionInStack());
-	return fCurrentStack->MoveToTopLayer(this);
+	bool moved = fCurrentStack->MoveToTopLayer(this);
+
+	// Only the top window of a stack draws, so its buffer is out of date.
+	if (moved && fBufferInterface.IsSet()) {
+		BRegion full;
+		GetFullRegion(&full);
+		ProcessDirtyRegion(full);
+	}
+	return moved;
 }
 
 
