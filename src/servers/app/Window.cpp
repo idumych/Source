@@ -17,6 +17,7 @@
 #include "Window.h"
 
 #include <new>
+#include <typeinfo>
 #include <stdio.h>
 
 #include <Debug.h>
@@ -30,6 +31,7 @@
 #include "ClickTarget.h"
 #include "Decorator.h"
 #include "DecorManager.h"
+#include "DefaultDecorator.h"
 #include "Desktop.h"
 #include "DrawingEngine.h"
 #include "HWInterface.h"
@@ -81,7 +83,6 @@ Window::Window(const BRect& frame, const char *name,
 
 	fVisibleRegion(),
 	fVisibleContentRegion(),
-	fBufferReady(false),
 	fDirtyRegion(),
 
 	fContentRegion(),
@@ -121,7 +122,9 @@ Window::Window(const BRect& frame, const char *name,
 	fMinHeight(1),
 	fMaxHeight(32768),
 
-	fWorkspacesViewCount(0)
+	fWorkspacesViewCount(0),
+
+	fBufferReady(false)
 {
 	_InitWindowStack();
 
@@ -212,8 +215,12 @@ Window::SetClipping(BRegion* stillAvailableOnScreen)
 		fBufferInterface->SetFrame(frame);
 
 		std::vector<::Decorator::ShapeRect> shape;
-		if (::Decorator* decorator = Decorator())
-			decorator->GetShape(shape);
+		if (::Decorator* decorator = Decorator()) {
+			if (typeid(*decorator) == typeid(DefaultDecorator))
+				((DefaultDecorator*)decorator)->GetRoundedShape(shape);
+			else
+				decorator->GetShape(shape);
+		}
 		if (shape.empty()) {
 			::Decorator::ShapeRect rect = { fFrame, 0, 0, 0, 0 };
 			shape.push_back(rect);

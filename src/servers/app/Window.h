@@ -378,15 +378,6 @@ protected:
 			BRegion				fVisibleRegion;
 			BRegion				fVisibleContentRegion;
 
-			// Only used when compositing
-			ObjectDeleter<WindowBufferHWInterface>
-								fBufferInterface;
-			BRegion				fCompositeRegion;
-			WindowShape			fShape;
-			BRegion				fOnScreenRegion;
-			BPoint				fBufferOffset;
-			bool				fBufferReady;
-
 			// Our part of the "global" dirty region (what needs to be redrawn).
 			// It is calculated from the desktop thread, but we can write to it when we read locked
 			// the clipping, since it is local and the desktop thread is blocked.
@@ -483,6 +474,16 @@ private:
 			WindowStack*		_InitWindowStack();
 
 			BReference<WindowStack>		fCurrentStack;
+
+			// Only used when compositing. Last, to keep the place of the others
+			// for decorator add-ons built against older headers.
+			ObjectDeleter<WindowBufferHWInterface>
+								fBufferInterface;
+			BRegion				fCompositeRegion;
+			WindowShape			fShape;
+			BRegion				fOnScreenRegion;
+			BPoint				fBufferOffset;
+			bool				fBufferReady;
 };
 
 

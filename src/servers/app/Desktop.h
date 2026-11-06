@@ -380,9 +380,6 @@ private:
 			BRegion				fBackgroundRegion;
 			BRegion				fScreenRegion;
 
-			ObjectDeleter<Compositor>
-								fCompositor;
-
 			Window*				fMouseEventWindow;
 			const Window*		fWindowUnderMouse;
 			const Window*		fLockedFocusWindow;
@@ -397,6 +394,9 @@ private:
 			StackAndTile		fStackAndTile;
 
 			BMessage			fPendingColors;
+
+			ObjectDeleter<Compositor>
+								fCompositor;
 };
 
 #endif	// DESKTOP_H

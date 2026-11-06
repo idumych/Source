@@ -38,7 +38,8 @@ public:
 
 	virtual void				UpdateColors(DesktopSettings& settings);
 
-	virtual	void				GetShape(std::vector<ShapeRect>& shape) const;
+			void				GetRoundedShape(
+									std::vector<ShapeRect>& shape) const;
 
 protected:
 	virtual	void				_DrawFrame(BRect rect);

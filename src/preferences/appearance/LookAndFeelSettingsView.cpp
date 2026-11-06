@@ -498,7 +498,7 @@ LookAndFeelSettingsView::IsDefaultable()
 	return fCurrentDecor != fDecorUtility.DefaultDecorator()->ShortcutName()
 		|| fCurrentControlLook.Length() != 0
 		|| _DoubleScrollBarArrows() != false
-		|| !_CompositedDesktop()
+		|| _CompositedDesktop()
 		|| _ZSnake();
 }
 
@@ -509,7 +509,7 @@ LookAndFeelSettingsView::SetDefaults()
 	_SetDecor(fDecorUtility.DefaultDecorator());
 	_SetControlLook(BString(""));
 	_SetDoubleScrollBarArrows(false);
-	_SetCompositedDesktop(true);
+	_SetCompositedDesktop(false);
 	_SetZSnake(false);
 }
 
@@ -545,7 +545,7 @@ LookAndFeelSettingsView::_CompositedDesktop()
 	link.StartMessage(AS_GET_COMPOSITED_DESKTOP);
 
 	int32 status;
-	bool composited = true;
+	bool composited = false;
 	if (link.FlushWithReply(status) == B_OK && status == B_OK)
 		link.Read<bool>(&composited);
 	return composited;

@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cmath>
 #include <new>
+#include <typeinfo>
 #include <stdio.h>
 
 #include <AffineTransform.h>
@@ -195,9 +196,9 @@ DefaultDecorator::UpdateColors(DesktopSettings& settings)
 
 
 void
-DefaultDecorator::GetShape(std::vector<ShapeRect>& shape) const
+DefaultDecorator::GetRoundedShape(std::vector<ShapeRect>& shape) const
 {
-	TabDecorator::GetShape(shape);
+	GetShape(shape);
 
 	const window_look look = fTopTab->look;
 	if (look != B_TITLED_WINDOW_LOOK && look != B_DOCUMENT_WINDOW_LOOK
@@ -245,6 +246,10 @@ void
 DefaultDecorator::_StrokeCorner(BPoint leftTop, int32 radius,
 	WindowShape::corner_kind kind, rgb_color color)
 {
+	// A decorator built on this one has its own idea of the corners.
+	if (typeid(*this) != typeid(DefaultDecorator))
+		return;
+
 	const uint8* outer = WindowShape::CoverageFor(radius);
 	if (outer == NULL)
 		return;
@@ -288,7 +293,7 @@ void
 DefaultDecorator::_DrawFrameCorners(BRect rect)
 {
 	std::vector<ShapeRect> shape;
-	GetShape(shape);
+	GetRoundedShape(shape);
 	const ShapeRect& frame = shape[0];
 	const BRect& border = frame.rect;
 

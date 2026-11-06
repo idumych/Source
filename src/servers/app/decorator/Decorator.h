@@ -192,12 +192,12 @@ public:
 			const BRegion&		GetFootprint();
 			::Desktop*			GetDesktop();
 
-	// The outline of the window, for a composited desktop: the compositor
-	// casts its shadow, and blends what is cut off at the corners with what is
-	// behind the window. The first entry is the frame, followed by the tabs.
-	// The decorator draws as if the corners weren't cut off, but should draw
-	// the border along the rounded corner.
-	virtual	void				GetShape(std::vector<ShapeRect>& shape) const;
+			// The outline of the window, for a composited desktop: the compositor
+			// casts its shadow, and blends what is cut off at the corners with
+			// what is behind the window. The first entry is the frame, followed
+			// by the tabs. It isn't virtual to keep the decorator add-ons' ABI.
+			// Only DefaultDecorator rounds its corners so far, see Window.
+			void				GetShape(std::vector<ShapeRect>& shape) const;
 
 			void				MoveBy(float x, float y);
 			void				MoveBy(BPoint offset);
