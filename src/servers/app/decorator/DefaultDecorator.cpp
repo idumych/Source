@@ -38,6 +38,7 @@
 #include <WindowPrivate.h>
 
 #include "BitmapDrawingEngine.h"
+#include "Desktop.h"
 #include "DesktopSettings.h"
 #include "DrawingEngine.h"
 #include "DrawState.h"
@@ -199,6 +200,11 @@ DefaultDecorator::UpdateColors(DesktopSettings& settings)
 bool
 DefaultDecorator::HasRoundedCorners() const
 {
+	// Without a compositor to cut them off, corners stay as they always were.
+	::Desktop* desktop = const_cast<DefaultDecorator*>(this)->GetDesktop();
+	if (desktop == NULL || desktop->GetCompositor() == NULL)
+		return false;
+
 	return typeid(*this) == typeid(DefaultDecorator)
 		|| typeid(*this) == typeid(SATDecorator);
 }
@@ -300,6 +306,9 @@ DefaultDecorator::_StrokeCorner(BPoint leftTop, int32 radius,
 void
 DefaultDecorator::_DrawFrameCorners(BRect rect)
 {
+	if (!HasRoundedCorners())
+		return;
+
 	std::vector<ShapeRect> shape;
 	GetRoundedShape(shape);
 	const ShapeRect& frame = shape[0];
