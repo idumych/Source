@@ -43,6 +43,7 @@
 #include "DrawState.h"
 #include "FontManager.h"
 #include "PatternHandler.h"
+#include "SATDecorator.h"
 #include "ServerBitmap.h"
 #include "WindowShape.h"
 
@@ -195,6 +196,14 @@ DefaultDecorator::UpdateColors(DesktopSettings& settings)
 }
 
 
+bool
+DefaultDecorator::HasRoundedCorners() const
+{
+	return typeid(*this) == typeid(DefaultDecorator)
+		|| typeid(*this) == typeid(SATDecorator);
+}
+
+
 void
 DefaultDecorator::GetRoundedShape(std::vector<ShapeRect>& shape) const
 {
@@ -246,8 +255,7 @@ void
 DefaultDecorator::_StrokeCorner(BPoint leftTop, int32 radius,
 	WindowShape::corner_kind kind, rgb_color color)
 {
-	// A decorator built on this one has its own idea of the corners.
-	if (typeid(*this) != typeid(DefaultDecorator))
+	if (!HasRoundedCorners())
 		return;
 
 	const uint8* outer = WindowShape::CoverageFor(radius);

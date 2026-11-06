@@ -17,7 +17,6 @@
 #include "Window.h"
 
 #include <new>
-#include <typeinfo>
 #include <stdio.h>
 
 #include <Debug.h>
@@ -216,8 +215,9 @@ Window::SetClipping(BRegion* stillAvailableOnScreen)
 
 		std::vector<::Decorator::ShapeRect> shape;
 		if (::Decorator* decorator = Decorator()) {
-			if (typeid(*decorator) == typeid(DefaultDecorator))
-				((DefaultDecorator*)decorator)->GetRoundedShape(shape);
+			DefaultDecorator* rounded = dynamic_cast<DefaultDecorator*>(decorator);
+			if (rounded != NULL && rounded->HasRoundedCorners())
+				rounded->GetRoundedShape(shape);
 			else
 				decorator->GetShape(shape);
 		}

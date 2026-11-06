@@ -40,6 +40,10 @@ public:
 
 			void				GetRoundedShape(
 									std::vector<ShapeRect>& shape) const;
+			// Decorators built on this one have their own idea of the corners,
+			// except for the one that adds stack and tile to it, which is the
+			// one the system normally uses.
+			bool				HasRoundedCorners() const;
 
 protected:
 	virtual	void				_DrawFrame(BRect rect);
