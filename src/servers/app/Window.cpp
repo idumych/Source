@@ -2330,13 +2330,16 @@ Window::MoveToTopStackLayer()
 	::Decorator* decorator = Decorator();
 	if (decorator == NULL)
 		return false;
+	bool wasOnTop = fCurrentStack->TopLayerWindow() == this;
 	decorator->SetDrawingEngine(GetDrawingEngine());
 	SetLook(Look(), NULL);
 	decorator->SetTopTab(PositionInStack());
 	bool moved = fCurrentStack->MoveToTopLayer(this);
 
-	// Only the top window of a stack draws, so its buffer is out of date.
-	if (moved && fBufferInterface.IsSet()) {
+	// Only the top window of a stack draws, so a window that wasn't on top has
+	// an out of date buffer. This is called whenever a window is activated, and
+	// mostly there is nothing to do.
+	if (moved && !wasOnTop && fBufferInterface.IsSet()) {
 		BRegion full;
 		GetFullRegion(&full);
 		ProcessDirtyRegion(full);
