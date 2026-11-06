@@ -26,10 +26,8 @@
 #define DECORATORS_DIR "/boot/home/config/add-ons/decorators/"
 
 // Whether windows draw to their own buffers, which a compositor then combines
-// to make up the screen. A file of this name in the user's app_server settings
-// folder turns it off for the next start of app_server.
+// to make up the screen, until the Appearance preferences say otherwise.
 #define COMPOSITED_DESKTOP_DEFAULT true
-#define COMPOSITED_DESKTOP_OFF_FILE "no_compositor"
 
 // These definitions provide the server something to use for default
 // system fonts.

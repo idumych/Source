@@ -49,6 +49,8 @@ private:
 
 			bool				_DoubleScrollBarArrows();
 			void				_SetDoubleScrollBarArrows(bool doubleArrows);
+			bool				_CompositedDesktop();
+			void				_SetCompositedDesktop(bool composited);
 
 private:
 			DecorInfoUtility	fDecorUtility;
@@ -71,6 +73,9 @@ private:
 			BString				fCurrentControlLook;
 
 			bool				fSavedDoubleArrowsValue : 1;
+
+			BCheckBox*			fCompositedCheckBox;
+			bool				fSavedComposited;
 };
 
 
