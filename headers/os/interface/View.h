@@ -776,6 +776,8 @@ private:
 			void				_Draw(BRect screenUpdateRect);
 			void				_DrawAfterChildren(BRect screenUpdateRect);
 			void				_FontsUpdated(BMessage*);
+			void				_UpdateSystemFont();
+			void				_ControlLookUpdated(BMessage* message);
 			void				_Pulse();
 
 			void				_UpdateStateForRemove();

@@ -207,7 +207,20 @@ static const char* kColorNames[kColorWhichCount] = {
 	NULL
 };
 
-static image_id sControlLookAddon = -1;
+// Every control look this team has used. They stay loaded until it quits: other
+// threads call be_control_look without any lock, so one of them could still be
+// in a method of a look that has just been replaced.
+struct ControlLookEntry {
+	BString				path;
+	image_id			addon;
+	BControlLook*		look;
+	ControlLookEntry*	next;
+};
+
+static ControlLookEntry* sControlLooks = NULL;
+
+// The menu font, as views can follow it the way they follow be_plain_font.
+static BFont sMenuFont;
 
 
 namespace BPrivate {
@@ -1473,6 +1486,53 @@ shift_color(rgb_color color, float shift)
 }
 
 
+/*!	Returns the entry of the control look with the given add-on path, loading
+	it if this team hasn't used it yet. An empty path is the default look.
+	Returns \c NULL when the look can't be loaded.
+*/
+static ControlLookEntry*
+get_control_look_entry(const BString& path)
+{
+	for (ControlLookEntry* entry = sControlLooks; entry != NULL;
+			entry = entry->next) {
+		if (entry->path == path)
+			return entry;
+	}
+
+	image_id addon = -1;
+	BControlLook* look = NULL;
+	if (path.Length() > 0) {
+		BControlLook* (*instantiate)(image_id);
+
+		addon = load_add_on(path.String());
+		if (addon < 0)
+			return NULL;
+		if (get_image_symbol(addon, "instantiate_control_look",
+				B_SYMBOL_TYPE_TEXT, (void**)&instantiate) == B_OK) {
+			look = instantiate(addon);
+		}
+	} else
+		look = new(std::nothrow) HaikuControlLook();
+
+	ControlLookEntry* entry = NULL;
+	if (look != NULL)
+		entry = new(std::nothrow) ControlLookEntry;
+	if (entry == NULL) {
+		delete look;
+		if (addon >= 0)
+			unload_add_on(addon);
+		return NULL;
+	}
+
+	entry->path = path;
+	entry->addon = addon;
+	entry->look = look;
+	entry->next = sControlLooks;
+	sControlLooks = entry;
+	return entry;
+}
+
+
 extern "C" status_t
 _init_interface_kit_()
 {
@@ -1485,23 +1545,14 @@ _init_interface_kit_()
 		be_clipboard = new BClipboard(NULL);
 
 	BString path;
-	if (get_control_look(path) && path.Length() > 0) {
-		BControlLook* (*instantiate)(image_id);
-
-		sControlLookAddon = load_add_on(path.String());
-		if (sControlLookAddon >= 0
-			&& get_image_symbol(sControlLookAddon,
-				"instantiate_control_look",
-				B_SYMBOL_TYPE_TEXT, (void **)&instantiate) == B_OK) {
-			be_control_look = instantiate(sControlLookAddon);
-			if (be_control_look == NULL) {
-				unload_add_on(sControlLookAddon);
-				sControlLookAddon = -1;
-			}
-		}
-	}
-	if (be_control_look == NULL)
-		be_control_look = new HaikuControlLook();
+	ControlLookEntry* controlLook = NULL;
+	if (get_control_look(path))
+		controlLook = get_control_look_entry(path);
+	if (controlLook == NULL)
+		controlLook = get_control_look_entry(BString());
+	if (controlLook == NULL)
+		return B_NO_MEMORY;
+	be_control_look = controlLook->look;
 
 	_init_global_fonts_();
 
@@ -1515,6 +1566,10 @@ _init_interface_kit_()
 	status = get_menu_info(&BMenu::sMenuInfo);
 	if (status != B_OK)
 		return status;
+
+	sMenuFont.SetFamilyAndStyle(BMenu::sMenuInfo.f_family,
+		BMenu::sMenuInfo.f_style);
+	sMenuFont.SetSize(BMenu::sMenuInfo.font_size);
 
 	general_info.background_color = ui_color(B_PANEL_BACKGROUND_COLOR);
 	general_info.mark_color = ui_color(B_CONTROL_MARK_COLOR);
@@ -1536,15 +1591,17 @@ _fini_interface_kit_()
 	delete BPrivate::gWidthBuffer;
 	BPrivate::gWidthBuffer = NULL;
 
-	delete be_control_look;
 	be_control_look = NULL;
 
-	// Note: if we ever want to support live switching, we cannot just unload
-	// the old one since some thread might still be in a method of the object.
-	// maybe locking/unlocking all loopers around would ensure proper exit.
-	if (sControlLookAddon >= 0)
-		unload_add_on(sControlLookAddon);
-	sControlLookAddon = -1;
+	while (sControlLooks != NULL) {
+		ControlLookEntry* entry = sControlLooks;
+		sControlLooks = entry->next;
+
+		delete entry->look;
+		if (entry->addon >= 0)
+			unload_add_on(entry->addon);
+		delete entry;
+	}
 
 	// TODO: Anything else?
 
@@ -1652,6 +1709,84 @@ set_control_look(const BString& path)
 		return B_ERROR;
 
 	return error;
+}
+
+
+/*!	\brief Private function which makes this team use the system's ControlLook.
+
+	Called by BApplication's thread, the only one that changes be_control_look
+	after the interface kit has been initialized. If the look can't be loaded,
+	the team keeps the one it has.
+
+	\return \c true if be_control_look has changed.
+*/
+bool
+update_control_look()
+{
+	// Servers without a GUI context get the message, too.
+	if (be_control_look == NULL)
+		return false;
+
+	BString path;
+	if (!get_control_look(path))
+		return false;
+
+	ControlLookEntry* entry = get_control_look_entry(path);
+	if (entry == NULL || entry->look == be_control_look)
+		return false;
+
+	be_control_look = entry->look;
+	return true;
+}
+
+
+const BFont*
+menu_font()
+{
+	return &sMenuFont;
+}
+
+
+static bool
+same_font(const BFont& first, const BFont& second)
+{
+	return first.FamilyAndStyle() == second.FamilyAndStyle()
+		&& first.Size() == second.Size();
+}
+
+
+/*!	\brief Private function which brings this team's system fonts up to date.
+
+	Called by BApplication's thread. Other threads may be reading the fonts
+	while they change, and would at worst use a mix of the two for one call.
+
+	\return \c true if any of them has changed.
+*/
+bool
+update_system_fonts()
+{
+	// Servers without a GUI context get the message, too.
+	if (_menu_info_ptr_ == NULL)
+		return false;
+
+	const BFont plain(*be_plain_font);
+	const BFont bold(*be_bold_font);
+	const BFont fixed(*be_fixed_font);
+	const BFont menu(sMenuFont);
+
+	_init_global_fonts_();
+
+	menu_info info;
+	if (get_menu_info(&info) == B_OK) {
+		*_menu_info_ptr_ = info;
+		sMenuFont.SetFamilyAndStyle(info.f_family, info.f_style);
+		sMenuFont.SetSize(info.font_size);
+	}
+
+	return !same_font(plain, *be_plain_font)
+		|| !same_font(bold, *be_bold_font)
+		|| !same_font(fixed, *be_fixed_font)
+		|| !same_font(menu, sMenuFont);
 }
 
 
