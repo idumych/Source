@@ -50,6 +50,7 @@
 #include "BitmapManager.h"
 #include "CursorManager.h"
 #include "CursorSet.h"
+#include "Compositor.h"
 #include "Desktop.h"
 #include "DecorManager.h"
 #include "DrawingEngine.h"
@@ -3400,6 +3401,8 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 
 			BReference<ServerBitmap> bitmap(GetBitmap(token), true);
 			if (bitmap != NULL) {
+				if (Compositor* compositor = fDesktop->GetCompositor())
+					compositor->Flush();
 				if (fDesktop->GetDrawingEngine()->LockExclusiveAccess()) {
 					success = fDesktop->GetDrawingEngine()->ReadBitmap(bitmap,
 						drawCursor, bounds) == B_OK;
@@ -3477,6 +3480,23 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 			break;
 		}
 
+		case AS_SET_COMPOSITED_DESKTOP:
+		{
+			bool composited;
+			if (link.Read<bool>(&composited) == B_OK) {
+				LockedDesktopSettings settings(fDesktop);
+				settings.SetCompositedDesktop(composited);
+			}
+			break;
+		}
+		case AS_GET_COMPOSITED_DESKTOP:
+		{
+			DesktopSettings settings(fDesktop);
+			fLink.StartMessage(B_OK);
+			fLink.Attach<bool>(settings.CompositedDesktop());
+			fLink.Flush();
+			break;
+		}
 		case AS_GET_SUBPIXEL_ANTIALIASING:
 		{
 			DesktopSettings settings(fDesktop);

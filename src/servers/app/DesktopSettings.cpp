@@ -87,6 +87,7 @@ DesktopSettingsPrivate::_SetDefaults()
 		sizeof(rgb_color) * kColorWhichCount);
 
 	gSubpixelAntialiasing = true;
+	fCompositedDesktop = COMPOSITED_DESKTOP_DEFAULT;
 	gDefaultHintingMode = HINTING_MODE_ON;
 	gSubpixelAverageWeight = 120;
 	gSubpixelOrderingRGB = true;
@@ -290,6 +291,10 @@ DesktopSettingsPrivate::_Load()
 			if (settings.FindBool("subpixel antialiasing", &subpix) == B_OK)
 				gSubpixelAntialiasing = subpix;
 
+			bool composited;
+			if (settings.FindBool("composited desktop", &composited) == B_OK)
+				fCompositedDesktop = composited;
+
 			int8 averageWeight;
 			if (settings.FindInt8("subpixel average weight", &averageWeight)
 					== B_OK) {
@@ -453,6 +458,7 @@ DesktopSettingsPrivate::Save(uint32 mask)
 			settings.AddInt32("min knob size", fScrollBarInfo.min_knob_size);
 
 			settings.AddBool("subpixel antialiasing", gSubpixelAntialiasing);
+			settings.AddBool("composited desktop", fCompositedDesktop);
 			settings.AddInt8("subpixel average weight", gSubpixelAverageWeight);
 			settings.AddBool("subpixel ordering", gSubpixelOrderingRGB);
 
@@ -742,6 +748,21 @@ DesktopSettingsPrivate::UIColor(color_which which) const
 
 
 void
+DesktopSettingsPrivate::SetCompositedDesktop(bool composited)
+{
+	fCompositedDesktop = composited;
+	Save(kAppearanceSettings);
+}
+
+
+bool
+DesktopSettingsPrivate::CompositedDesktop() const
+{
+	return fCompositedDesktop;
+}
+
+
+void
 DesktopSettingsPrivate::SetSubpixelAntialiasing(bool subpix)
 {
 	gSubpixelAntialiasing = subpix;
@@ -943,6 +964,13 @@ DesktopSettings::UIColor(color_which which) const
 
 
 bool
+DesktopSettings::CompositedDesktop() const
+{
+	return fSettings->CompositedDesktop();
+}
+
+
+bool
 DesktopSettings::SubpixelAntialiasing() const
 {
 	return fSettings->SubpixelAntialiasing();
@@ -1068,6 +1096,13 @@ void
 LockedDesktopSettings::SetUIColors(const BMessage& colors, bool* changed)
 {
 	fSettings->SetUIColors(colors, &changed[0]);
+}
+
+
+void
+LockedDesktopSettings::SetCompositedDesktop(bool composited)
+{
+	fSettings->SetCompositedDesktop(composited);
 }
 
 
