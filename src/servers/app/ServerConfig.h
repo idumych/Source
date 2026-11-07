@@ -27,7 +27,7 @@
 
 // Whether windows draw to their own buffers, which a compositor then combines
 // to make up the screen, until the Appearance preferences say otherwise.
-#define COMPOSITED_DESKTOP_DEFAULT false
+#define COMPOSITED_DESKTOP_DEFAULT true
 
 // What the compositor adds to windows when it is used.
 #define COMPOSITED_SHADOWS_DEFAULT true
