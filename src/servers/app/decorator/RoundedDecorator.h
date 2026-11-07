@@ -41,6 +41,12 @@ public:
 									window_look look, int32 frameRadius,
 									int32 tabRadius);
 
+	static	void				StrokeCorners(DrawingEngine* engine,
+									const Decorator::ShapeRect& shape,
+									rgb_color leftTop, rgb_color rightTop,
+									rgb_color leftBottom,
+									rgb_color rightBottom);
+
 	static	void				StrokeCorner(DrawingEngine* engine,
 									BPoint leftTop, int32 radius,
 									WindowShape::corner_kind kind,

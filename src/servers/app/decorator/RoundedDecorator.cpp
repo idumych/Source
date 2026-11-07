@@ -45,6 +45,11 @@ RoundedDecorator::RoundShape(std::vector<Decorator::ShapeRect>& shape,
 
 	for (size_t i = 1; i < shape.size(); i++) {
 		Decorator::ShapeRect& tab = shape[i];
+
+		// A title bar inside the frame has no corners of its own to round.
+		if (border.Contains(tab.rect))
+			continue;
+
 		tab.leftTop = tabRadius;
 
 		// The frame keeps its corner where a tab grows out of it.
@@ -61,6 +66,35 @@ RoundedDecorator::RoundShape(std::vector<Decorator::ShapeRect>& shape,
 			if (tab.rect.right >= border.right - frameRadius)
 				frame.rightTop = 0;
 		}
+	}
+}
+
+
+/*static*/ void
+RoundedDecorator::StrokeCorners(DrawingEngine* engine,
+	const Decorator::ShapeRect& shape, rgb_color leftTop, rgb_color rightTop,
+	rgb_color leftBottom, rgb_color rightBottom)
+{
+	const BRect& rect = shape.rect;
+	const int32 lt = (int32)shape.leftTop;
+	const int32 rt = (int32)shape.rightTop;
+	const int32 lb = (int32)shape.leftBottom;
+	const int32 rb = (int32)shape.rightBottom;
+
+	if (lt > 0) {
+		StrokeCorner(engine, rect.LeftTop(), lt, WindowShape::LEFT_TOP, leftTop);
+	}
+	if (rt > 0) {
+		StrokeCorner(engine, BPoint(rect.right - rt + 1, rect.top), rt,
+			WindowShape::RIGHT_TOP, rightTop);
+	}
+	if (lb > 0) {
+		StrokeCorner(engine, BPoint(rect.left, rect.bottom - lb + 1), lb,
+			WindowShape::LEFT_BOTTOM, leftBottom);
+	}
+	if (rb > 0) {
+		StrokeCorner(engine, BPoint(rect.right - rb + 1, rect.bottom - rb + 1),
+			rb, WindowShape::RIGHT_BOTTOM, rightBottom);
 	}
 }
 
