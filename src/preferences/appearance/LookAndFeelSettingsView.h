@@ -51,6 +51,11 @@ private:
 			void				_SetDoubleScrollBarArrows(bool doubleArrows);
 			bool				_CompositedDesktop();
 			void				_SetCompositedDesktop(bool composited);
+			void				_OfferRestart();
+			bool				_CompositedShadows();
+			void				_SetCompositedShadows(bool shadows);
+			bool				_CompositedRoundedCorners();
+			void				_SetCompositedRoundedCorners(bool rounded);
 
 			bool				_ZSnake();
 			void				_SetZSnake(bool zsnake);
@@ -81,6 +86,10 @@ private:
 
 			BCheckBox*			fCompositedCheckBox;
 			bool				fSavedComposited;
+			BCheckBox*			fShadowsCheckBox;
+			bool				fSavedShadows;
+			BCheckBox*			fRoundedCornersCheckBox;
+			bool				fSavedRoundedCorners;
 			bool				fSavedZSnake : 1;
 };
 

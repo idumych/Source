@@ -41,6 +41,7 @@
 #include <TextView.h>
 
 #include <AppServerLink.h>
+#include <RosterPrivate.h>
 #include <ServerProtocol.h>
 
 #include "AppearanceWindow.h"
@@ -60,6 +61,8 @@ static const int32 kMsgControlLookInfo = 'iclk';
 
 static const int32 kMsgDoubleScrollBarArrows = 'dsba';
 static const int32 kMsgCompositedDesktop = 'cmps';
+static const int32 kMsgCompositedShadows = 'cmpw';
+static const int32 kMsgCompositedRoundedCorners = 'cmpr';
 
 static const int32 kMsgArrowStyleSingle = 'mass';
 static const int32 kMsgArrowStyleDouble = 'masd';
@@ -157,10 +160,24 @@ LookAndFeelSettingsView::LookAndFeelSettingsView(const char* name)
 	// control layout
 	fSavedComposited = _CompositedDesktop();
 	fCompositedCheckBox = new BCheckBox("composited",
-		B_TRANSLATE("Smooth window edges and shadows (after a restart)"),
+		B_TRANSLATE("Compositor (after a restart)"),
 		new BMessage(kMsgCompositedDesktop));
 	fCompositedCheckBox->SetValue(
 		fSavedComposited ? B_CONTROL_ON : B_CONTROL_OFF);
+
+	fSavedShadows = _CompositedShadows();
+	fShadowsCheckBox = new BCheckBox("shadows",
+		B_TRANSLATE("Window shadows"), new BMessage(kMsgCompositedShadows));
+	fShadowsCheckBox->SetValue(fSavedShadows ? B_CONTROL_ON : B_CONTROL_OFF);
+	fShadowsCheckBox->SetEnabled(fSavedComposited);
+
+	fSavedRoundedCorners = _CompositedRoundedCorners();
+	fRoundedCornersCheckBox = new BCheckBox("rounded corners",
+		B_TRANSLATE("Rounded window corners"),
+		new BMessage(kMsgCompositedRoundedCorners));
+	fRoundedCornersCheckBox->SetValue(
+		fSavedRoundedCorners ? B_CONTROL_ON : B_CONTROL_OFF);
+	fRoundedCornersCheckBox->SetEnabled(fSavedComposited);
 
 	BLayoutBuilder::Grid<>(this, B_USE_DEFAULT_SPACING, B_USE_DEFAULT_SPACING)
 		.Add(fDecorMenuField->CreateLabelLayoutItem(), 0, 0)
@@ -172,8 +189,13 @@ LookAndFeelSettingsView::LookAndFeelSettingsView(const char* name)
 		.Add(scrollBarLabel, 0, 2)
 		.Add(arrowStyleBox, 1, 2)
 		.Add(fCompositedCheckBox, 1, 3)
-		.Add(fZSnakeCheckBox, 1, 4)
-		.AddGlue(0, 5)
+		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING, 1, 4)
+			.Add(fShadowsCheckBox)
+			.Add(fRoundedCornersCheckBox)
+			.SetInsets(B_USE_WINDOW_SPACING, 0, 0, 0)
+			.End()
+		.Add(fZSnakeCheckBox, 1, 5)
+		.AddGlue(0, 6)
 		.SetInsets(B_USE_WINDOW_SPACING);
 
 	// TODO : Decorator Preview Image?
@@ -189,6 +211,8 @@ void
 LookAndFeelSettingsView::AttachedToWindow()
 {
 	fCompositedCheckBox->SetTarget(this);
+	fShadowsCheckBox->SetTarget(this);
+	fRoundedCornersCheckBox->SetTarget(this);
 	AdoptParentColors();
 
 	if (Parent() == NULL)
@@ -216,6 +240,18 @@ LookAndFeelSettingsView::MessageReceived(BMessage* message)
 		case kMsgCompositedDesktop:
 			_SetCompositedDesktop(
 				fCompositedCheckBox->Value() == B_CONTROL_ON);
+			Window()->PostMessage(kMsgUpdate);
+			_OfferRestart();
+			break;
+
+		case kMsgCompositedShadows:
+			_SetCompositedShadows(fShadowsCheckBox->Value() == B_CONTROL_ON);
+			Window()->PostMessage(kMsgUpdate);
+			break;
+
+		case kMsgCompositedRoundedCorners:
+			_SetCompositedRoundedCorners(
+				fRoundedCornersCheckBox->Value() == B_CONTROL_ON);
 			Window()->PostMessage(kMsgUpdate);
 			break;
 
@@ -499,6 +535,8 @@ LookAndFeelSettingsView::IsDefaultable()
 		|| fCurrentControlLook.Length() != 0
 		|| _DoubleScrollBarArrows() != false
 		|| _CompositedDesktop()
+		|| !_CompositedShadows()
+		|| !_CompositedRoundedCorners()
 		|| _ZSnake();
 }
 
@@ -510,6 +548,8 @@ LookAndFeelSettingsView::SetDefaults()
 	_SetControlLook(BString(""));
 	_SetDoubleScrollBarArrows(false);
 	_SetCompositedDesktop(false);
+	_SetCompositedShadows(true);
+	_SetCompositedRoundedCorners(true);
 	_SetZSnake(false);
 }
 
@@ -521,6 +561,8 @@ LookAndFeelSettingsView::IsRevertable()
 		|| fCurrentControlLook != fSavedControlLook
 		|| _DoubleScrollBarArrows() != fSavedDoubleArrowsValue
 		|| _CompositedDesktop() != fSavedComposited
+		|| _CompositedShadows() != fSavedShadows
+		|| _CompositedRoundedCorners() != fSavedRoundedCorners
 		|| _ZSnake() != fSavedZSnake;
 }
 
@@ -533,6 +575,8 @@ LookAndFeelSettingsView::Revert()
 		_SetControlLook(fSavedControlLook);
 		_SetDoubleScrollBarArrows(fSavedDoubleArrowsValue);
 		_SetCompositedDesktop(fSavedComposited);
+		_SetCompositedShadows(fSavedShadows);
+		_SetCompositedRoundedCorners(fSavedRoundedCorners);
 		_SetZSnake(fSavedZSnake);
 	}
 }
@@ -561,4 +605,72 @@ LookAndFeelSettingsView::_SetCompositedDesktop(bool composited)
 	link.Flush();
 
 	fCompositedCheckBox->SetValue(composited ? B_CONTROL_ON : B_CONTROL_OFF);
+	fShadowsCheckBox->SetEnabled(composited);
+	fRoundedCornersCheckBox->SetEnabled(composited);
+}
+
+
+void
+LookAndFeelSettingsView::_OfferRestart()
+{
+	BAlert* alert = new BAlert(B_TRANSLATE("Restart"),
+		B_TRANSLATE("The compositor is switched on or off when the system "
+			"starts. Do you want to restart now?"),
+		B_TRANSLATE("I don't wanna"), B_TRANSLATE("Let's go!"));
+	alert->SetShortcut(0, B_ESCAPE);
+
+	if (alert->Go() == 1)
+		BRoster::Private().ShutDown(true, false, false);
+}
+
+
+bool
+LookAndFeelSettingsView::_CompositedShadows()
+{
+	BPrivate::AppServerLink link;
+	link.StartMessage(AS_GET_COMPOSITED_SHADOWS);
+
+	int32 status;
+	bool shadows = true;
+	if (link.FlushWithReply(status) == B_OK && status == B_OK)
+		link.Read<bool>(&shadows);
+	return shadows;
+}
+
+
+void
+LookAndFeelSettingsView::_SetCompositedShadows(bool shadows)
+{
+	BPrivate::AppServerLink link;
+	link.StartMessage(AS_SET_COMPOSITED_SHADOWS);
+	link.Attach<bool>(shadows);
+	link.Flush();
+
+	fShadowsCheckBox->SetValue(shadows ? B_CONTROL_ON : B_CONTROL_OFF);
+}
+
+
+bool
+LookAndFeelSettingsView::_CompositedRoundedCorners()
+{
+	BPrivate::AppServerLink link;
+	link.StartMessage(AS_GET_COMPOSITED_ROUNDED_CORNERS);
+
+	int32 status;
+	bool rounded = true;
+	if (link.FlushWithReply(status) == B_OK && status == B_OK)
+		link.Read<bool>(&rounded);
+	return rounded;
+}
+
+
+void
+LookAndFeelSettingsView::_SetCompositedRoundedCorners(bool rounded)
+{
+	BPrivate::AppServerLink link;
+	link.StartMessage(AS_SET_COMPOSITED_ROUNDED_CORNERS);
+	link.Attach<bool>(rounded);
+	link.Flush();
+
+	fRoundedCornersCheckBox->SetValue(rounded ? B_CONTROL_ON : B_CONTROL_OFF);
 }
