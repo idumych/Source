@@ -162,6 +162,7 @@ AddNewDriversToPackage network :
 	virtio_net
 	;
 AddNewDriversToPackage input :
+	goodix_touch@arm64
 	hyperv_hid@x86,x86_64
 	i2c_elan
 	i2c_goodix@x86,x86_64
