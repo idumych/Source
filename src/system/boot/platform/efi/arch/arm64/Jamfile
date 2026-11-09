@@ -39,9 +39,12 @@ for platform in [ MultiBootSubDirSetup efi ] {
 			generic_mmu.cpp
 			;
 
+		# a text console on the frame buffer pinephone_display.cpp brings up
 		BootMergeObject boot_platform_efi_arm64.o :
 			$(arch_src)
 			$(generic_src)
+			: :
+			boot_video_text_console_efi.a
 			;
 
 		SEARCH on [ FGristFiles $(generic_src) ]

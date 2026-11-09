@@ -286,6 +286,7 @@ platform_switch_to_logo(void)
 {
 #ifdef __aarch64__
 	if (pinephone_display_active()) {
+		pinephone_display_clear();
 		video_display_splash(gKernelArgs.frame_buffer.physical_buffer.start);
 		pinephone_display_flush();
 		return;

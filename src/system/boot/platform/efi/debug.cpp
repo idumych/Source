@@ -15,6 +15,9 @@
 #include <util/ring_buffer.h>
 
 #include "efi_platform.h"
+#ifdef __aarch64__
+#	include "arch/arm64/pinephone_display.h"
+#endif
 #include "mmu.h"
 #include "serial.h"
 
@@ -59,6 +62,9 @@ dprintf_args(const char *format, va_list args)
 
 	syslog_write(buffer, length);
 	serial_puts(buffer, length);
+#ifdef __aarch64__
+	pinephone_display_mirror(buffer, length);
+#endif
 }
 
 

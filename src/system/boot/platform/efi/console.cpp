@@ -20,6 +20,9 @@
 #include <util/kernel_cpp.h>
 
 #include "efi_platform.h"
+#ifdef __aarch64__
+#	include "arch/arm64/pinephone_display.h"
+#endif
 
 
 // This likely won't work without moving things around.
@@ -81,6 +84,10 @@ EFITextConsole::WriteAt(void *cookie, off_t /*pos*/, const void *buffer,
 {
 	const char *string = (const char *)buffer;
 	char16_t ucsBuffer[bufferSize + 3];
+#ifdef __aarch64__
+	// the boot menu, where there is no other screen
+	pinephone_display_mirror(string, bufferSize);
+#endif
 	uint32 j = 0;
 
 	size_t length = bufferSize;
