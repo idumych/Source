@@ -30,10 +30,10 @@ static const int32 kMsgRoundedCorners = 'cmpr';
 static const int32 kMsgDragTransparency = 'cmpt';
 
 // What app_server uses until it is told otherwise
-static const bool kDefaultComposited = false;
+static const bool kDefaultComposited = true;
 static const bool kDefaultShadows = true;
 static const bool kDefaultRoundedCorners = true;
-static const bool kDefaultDragTransparency = false;
+static const bool kDefaultDragTransparency = true;
 
 
 CompositorSettingsView::CompositorSettingsView(const char* name)
