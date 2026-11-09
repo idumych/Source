@@ -222,6 +222,7 @@ AddDriversToPackage input :
 	wacom
 	;
 AddDriversToPackage power :
+	axp803@arm64
 	intel_energy@x86,x86_64
 	;
 AddDriversToPackage misc :
