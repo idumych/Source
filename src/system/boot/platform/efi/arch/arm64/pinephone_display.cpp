@@ -27,6 +27,8 @@
 #include <KernelExport.h>
 #include <boot/kernel_args.h>
 #include <boot/platform.h>
+#include <boot/platform/generic/video.h>
+#include <boot/vfs.h>
 #include <boot/stage2.h>
 #include <boot/stdio.h>
 
@@ -115,6 +117,7 @@ enum Stage {
 static bool sActive = false;
 static addr_t sFrameBuffer;
 static size_t sFrameBufferSize;
+static ConsoleNode* sMirror;
 
 
 // #pragma mark - register access
@@ -1013,6 +1016,7 @@ pinephone_display_init()
 	gKernelArgs.frame_buffer.depth = 32;
 	gKernelArgs.frame_buffer.bytes_per_row = kPanelWidth * 4;
 
+	sMirror = video_text_console_init(sFrameBuffer);
 	dprintf("pinephone: panel on, frame buffer at %#" B_PRIxADDR "\n",
 		sFrameBuffer);
 	return B_OK;
@@ -1031,6 +1035,27 @@ pinephone_display_flush()
 {
 	if (sActive)
 		clean_dcache(sFrameBuffer, sFrameBufferSize);
+}
+
+
+void
+pinephone_display_clear()
+{
+	sMirror = NULL;
+	if (!sActive)
+		return;
+	memset((void*)sFrameBuffer, 0, sFrameBufferSize);
+	clean_dcache(sFrameBuffer, sFrameBufferSize);
+}
+
+
+void
+pinephone_display_mirror(const char* text, size_t length)
+{
+	if (sMirror == NULL || length == 0)
+		return;
+	sMirror->WriteAt(NULL, 0, text, length);
+	clean_dcache(sFrameBuffer, sFrameBufferSize);
 }
 
 
