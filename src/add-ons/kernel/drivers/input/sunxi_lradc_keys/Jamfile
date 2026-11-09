@@ -1,0 +1,10 @@
+SubDir HAIKU_TOP src add-ons kernel drivers input sunxi_lradc_keys ;
+
+SubDirC++Flags -fno-rtti ;
+
+UsePrivateKernelHeaders ;
+UsePrivateHeaders input ;
+
+KernelAddon sunxi_lradc_keys :
+	sunxi_lradc_keys.cpp
+	;
