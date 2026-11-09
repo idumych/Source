@@ -7,11 +7,17 @@
 /*	The X-Powers AXP803 PMIC of the PINE64 PinePhone (Allwinner A64), on the
 	SoC's RSB ("reduced serial bus") controller.
 
-	For now its power key: a long press (the PMIC's own long press event,
-	1.5 s by default) is published as /dev/power/button/power in
-	acpi_button's form: a read gives 1 once after a press, and select()
-	reports one; power_daemon then shuts the system down. A short press is
-	only logged; it is meant for blanking the screen once there is a way to.
+	Its power key: a long press (the PMIC's own long press event, 1.5 s by
+	default) is published as /dev/power/button/power in acpi_button's form:
+	a read gives 1 once after a press, and select() reports one;
+	power_daemon then shuts the system down. A short press is only logged;
+	it is meant for blanking the screen once there is a way to.
+
+	Its battery: /dev/power/battery/axp803 answers acpi_battery's ioctls,
+	which PowerStatus (Deskbar) reads. The charge is the PMIC's fuel gauge
+	percentage, reported against the PinePhone battery's nominal capacity;
+	current and voltage come from its ADCs, the state follows Linux'
+	axp20x_battery.c.
 
 	The key events are bits of the PMIC's interrupt status (bank 5, Linux'
 	axp20x.c), polled; the PMIC's interrupt line (through the R_INTC) is
@@ -30,6 +36,8 @@
 #include <util/AutoLock.h>
 
 #include <libfdt.h>
+
+#include <device/power_managment.h>
 
 
 extern void* gFDT;
@@ -66,14 +74,35 @@ static const uint8 kRegisterIrqEnable5 = 0x44;
 static const uint8 kRegisterIrqStatus5 = 0x4c;
 static const uint8 kIrqPekShort = 1u << 4;
 static const uint8 kIrqPekLong = 1u << 3;
+static const uint8 kRegisterPowerStatus = 0x00;
+static const uint8 kPowerStatusCharging = 1u << 2;
+static const uint8 kRegisterPowerMode = 0x01;
+static const uint8 kPowerModeBatteryPresent = 1u << 5;
+static const uint8 kRegisterBatteryVoltage = 0x78;		// 12 bits, 1.1 mV
+static const uint8 kRegisterChargeCurrent = 0x7a;		// 12 bits, 1 mA
+static const uint8 kRegisterDischargeCurrent = 0x7c;	// 12 bits, 1 mA
+static const uint8 kRegisterAdcEnable = 0x82;
+static const uint8 kAdcEnableBattery = 0xe0;
+	// battery voltage, current, and the TS pin (Linux' AXP22X_ADC_EN1_MASK)
+static const uint8 kRegisterFuelGauge = 0xb9;
+static const uint8 kFuelGaugeValid = 1u << 7;
 
-static const char* sDeviceNames[] = { "power/button/power", NULL };
+// the PinePhone's battery
+static const uint32 kNominalCapacity = 3000;	// mAh
+static const uint32 kNominalVoltage = 3800;		// mV
+
+static const char* sDeviceNames[] = {
+	"power/button/power",
+	"power/battery/axp803",
+	NULL
+};
 
 static area_id sRsbArea = -1;
 static volatile uint8* sRsb;
 static uint32 sHardwareAddress = 0x3a3;
 
 static mutex sLock = MUTEX_INITIALIZER("axp803");
+static mutex sRsbLock = MUTEX_INITIALIZER("axp803 rsb");
 static thread_id sThread = -1;
 static volatile bool sQuit;
 static uint8 sPressed;
@@ -116,6 +145,7 @@ rsb_transfer()
 static status_t
 pmic_read(uint8 reg, uint8* value)
 {
+	MutexLocker locker(sRsbLock);
 	wr(kRsbCommand, kRsbCommandRead8);
 	wr(kRsbDeviceAddress, kRuntimeAddress << 16);
 	wr(kRsbAddress, reg);
@@ -129,6 +159,7 @@ pmic_read(uint8 reg, uint8* value)
 static status_t
 pmic_write(uint8 reg, uint8 value)
 {
+	MutexLocker locker(sRsbLock);
 	wr(kRsbCommand, kRsbCommandWrite8);
 	wr(kRsbDeviceAddress, kRuntimeAddress << 16);
 	wr(kRsbAddress, reg);
@@ -207,6 +238,138 @@ poll_thread(void*)
 		snooze(100000);
 	}
 	return B_OK;
+}
+
+
+// #pragma mark - battery
+
+
+/*!	A 12 bit ADC value: the high register, then the low four bits. */
+static status_t
+read_adc(uint8 reg, uint32* value)
+{
+	uint8 high, low;
+	status_t status = pmic_read(reg, &high);
+	if (status == B_OK)
+		status = pmic_read(reg + 1, &low);
+	if (status == B_OK)
+		*value = (uint32)high << 4 | (low & 0x0f);
+	return status;
+}
+
+
+static status_t
+battery_info(acpi_battery_info* info)
+{
+	memset(info, 0, sizeof(*info));
+
+	uint8 power, mode, gauge;
+	status_t status = pmic_read(kRegisterPowerStatus, &power);
+	if (status == B_OK)
+		status = pmic_read(kRegisterPowerMode, &mode);
+	if (status == B_OK)
+		status = pmic_read(kRegisterFuelGauge, &gauge);
+	if (status != B_OK)
+		return status;
+	if ((mode & kPowerModeBatteryPresent) == 0)
+		return B_OK;
+
+	uint32 voltage = 0, charge = 0, discharge = 0;
+	read_adc(kRegisterBatteryVoltage, &voltage);
+	read_adc(kRegisterChargeCurrent, &charge);
+	read_adc(kRegisterDischargeCurrent, &discharge);
+
+	uint32 percent = (gauge & kFuelGaugeValid) != 0 ? gauge & 0x7f : 0;
+	if (percent > 100)
+		percent = 100;
+	bool charging = (power & kPowerStatusCharging) != 0;
+
+	if (charging)
+		info->state = BATTERY_CHARGING;
+	else if (discharge > 0)
+		info->state = BATTERY_DISCHARGING;
+	else
+		info->state = BATTERY_NOT_CHARGING;
+	if (!charging && percent <= 5)
+		info->state |= BATTERY_CRITICAL_STATE;
+
+	info->capacity = percent * kNominalCapacity / 100;
+	info->current_rate = charging ? charge : discharge;
+	info->voltage = voltage * 11 / 10;
+	return B_OK;
+}
+
+
+static void
+extended_battery_info(acpi_extended_battery_info* info)
+{
+	memset(info, 0, sizeof(*info));
+	info->power_unit = ACPI_BATTERY_UNIT_MA;
+	info->design_capacity = kNominalCapacity;
+	info->last_full_charge = kNominalCapacity;
+	info->technology = 1;	// rechargeable
+	info->design_voltage = kNominalVoltage;
+	info->design_capacity_warning = kNominalCapacity / 10;
+	info->design_capacity_low = kNominalCapacity / 20;
+	info->capacity_granularity_1 = kNominalCapacity / 100;
+	info->capacity_granularity_2 = kNominalCapacity / 100;
+	strlcpy(info->model_number, "PinePhone", sizeof(info->model_number));
+	strlcpy(info->type, "Li-ion", sizeof(info->type));
+	strlcpy(info->oem_info, "PINE64", sizeof(info->oem_info));
+	info->revision = ACPI_BATTERY_REVISION_BIF;
+}
+
+
+static status_t
+battery_open(const char* name, uint32 flags, void** _cookie)
+{
+	*_cookie = NULL;
+	return B_OK;
+}
+
+
+static status_t
+battery_control(void* cookie, uint32 op, void* buffer, size_t length)
+{
+	switch (op) {
+		case IDENTIFY_DEVICE:
+		{
+			if (length < sizeof(uint32))
+				return B_BAD_VALUE;
+			uint32 magic = kMagicACPIBatteryID;
+			return user_memcpy(buffer, &magic, sizeof(magic));
+		}
+
+		case GET_BATTERY_INFO:
+		{
+			if (length < sizeof(acpi_battery_info))
+				return B_BAD_VALUE;
+			acpi_battery_info info;
+			status_t status = battery_info(&info);
+			if (status != B_OK)
+				return status;
+			return user_memcpy(buffer, &info, sizeof(info));
+		}
+
+		case GET_EXTENDED_BATTERY_INFO:
+		{
+			if (length < sizeof(acpi_extended_battery_info))
+				return B_BAD_VALUE;
+			acpi_extended_battery_info info;
+			extended_battery_info(&info);
+			return user_memcpy(buffer, &info, sizeof(info));
+		}
+	}
+
+	return B_DEV_INVALID_IOCTL;
+}
+
+
+static status_t
+battery_read(void* cookie, off_t position, void* buffer, size_t* _length)
+{
+	*_length = 0;
+	return B_NOT_ALLOWED;
 }
 
 
@@ -290,7 +453,7 @@ axp803_deselect(void* cookie, uint8 event, selectsync* sync)
 }
 
 
-static device_hooks sDeviceHooks = {
+static device_hooks sButtonHooks = {
 	axp803_open,
 	axp803_close,
 	axp803_free,
@@ -299,6 +462,17 @@ static device_hooks sDeviceHooks = {
 	axp803_write,
 	axp803_select,
 	axp803_deselect
+};
+
+static device_hooks sBatteryHooks = {
+	battery_open,
+	axp803_close,
+	axp803_free,
+	battery_control,
+	battery_read,
+	axp803_write,
+	NULL,
+	NULL
 };
 
 
@@ -382,6 +556,12 @@ init_driver()
 	pmic_write(kRegisterIrqEnable5, enable | kIrqPekShort | kIrqPekLong);
 	pmic_write(kRegisterIrqStatus5, kIrqPekShort | kIrqPekLong);
 
+	// battery voltage and current measured
+	uint8 adc = 0;
+	pmic_read(kRegisterAdcEnable, &adc);
+	if ((adc & kAdcEnableBattery) != kAdcEnableBattery)
+		pmic_write(kRegisterAdcEnable, adc | kAdcEnableBattery);
+
 	sQuit = false;
 	sThread = spawn_kernel_thread(poll_thread, "axp803 power key",
 		B_LOW_PRIORITY, NULL);
@@ -392,7 +572,13 @@ init_driver()
 	}
 	resume_thread(sThread);
 
-	TRACE("chip ID %#x, power key on\n", chipId);
+	acpi_battery_info battery;
+	if (battery_info(&battery) == B_OK) {
+		TRACE("chip ID %#x, power key on; battery %" B_PRIu32 "%%, %"
+			B_PRIu32 " mV, %" B_PRIu32 " mA, state %#" B_PRIx32 "\n", chipId,
+			battery.capacity * 100 / kNominalCapacity, battery.voltage,
+			battery.current_rate, battery.state);
+	}
 	return B_OK;
 }
 
@@ -420,5 +606,7 @@ publish_devices()
 device_hooks*
 find_device(const char* name)
 {
-	return &sDeviceHooks;
+	if (strcmp(name, "power/battery/axp803") == 0)
+		return &sBatteryHooks;
+	return &sButtonHooks;
 }
