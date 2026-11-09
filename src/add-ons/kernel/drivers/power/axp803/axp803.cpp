@@ -19,6 +19,13 @@
 	current and voltage come from its ADCs, the state follows Linux'
 	axp20x_battery.c.
 
+	Its USB power input: the PMIC detects the charger type (USB BC 1.2);
+	for a dedicated charger or a charging downstream port, which may give
+	1.5 A, the input current limit is raised to that if it is lower, as
+	Linux' axp20x_usb_power.c lets user space do. Otherwise the phone,
+	which takes more than the 500 mA of a standard port with the panel on,
+	discharges while plugged in.
+
 	The key events are bits of the PMIC's interrupt status (bank 5, Linux'
 	axp20x.c), polled; the PMIC's interrupt line (through the R_INTC) is
 	not needed for that. The boot firmware leaves the RSB set up and the
@@ -84,6 +91,17 @@ static const uint8 kRegisterDischargeCurrent = 0x7c;	// 12 bits, 1 mA
 static const uint8 kRegisterAdcEnable = 0x82;
 static const uint8 kAdcEnableBattery = 0xe0;
 	// battery voltage, current, and the TS pin (Linux' AXP22X_ADC_EN1_MASK)
+static const uint8 kPowerStatusVbusPresent = 1u << 5;
+static const uint8 kRegisterChargerDetection = 0x2f;	// bits 7:5
+static const uint8 kRegisterInputCurrentLimit = 0x35;	// bits 7:4
+static const uint32 kInputCurrentLimits[] = {	// mA
+	100, 500, 900, 1500, 2000, 2500, 3000, 3500
+};
+static const uint8 kInputCurrentLimit1500 = 3;
+static const char* kChargerTypes[] = {
+	"unknown", "standard port", "charging port", "dedicated charger",
+	"?", "?", "?", "?"
+};
 static const uint8 kRegisterFuelGauge = 0xb9;
 static const uint8 kFuelGaugeValid = 1u << 7;
 
@@ -214,13 +232,66 @@ rsb_init()
 }
 
 
+static status_t battery_info(acpi_battery_info* info);
+
+
+// #pragma mark - USB power input
+
+
+/*!	Raises the input current limit to 1.5 A for chargers that may give that,
+	and logs what changes.
+*/
+static void
+check_usb_power(uint8& lastPower, uint8& lastType)
+{
+	uint8 power, detection, limit;
+	if (pmic_read(kRegisterPowerStatus, &power) != B_OK
+		|| pmic_read(kRegisterChargerDetection, &detection) != B_OK
+		|| pmic_read(kRegisterInputCurrentLimit, &limit) != B_OK) {
+		return;
+	}
+	uint8 type = (power & kPowerStatusVbusPresent) != 0 ? detection >> 5 : 0;
+	uint8 limitIndex = limit >> 4;
+
+	if ((type == 2 || type == 3) && limitIndex < kInputCurrentLimit1500) {
+		limitIndex = kInputCurrentLimit1500;
+		pmic_write(kRegisterInputCurrentLimit,
+			(limit & 0x0f) | (limitIndex << 4));
+		TRACE("input current limit raised to %" B_PRIu32 " mA\n",
+			kInputCurrentLimits[limitIndex]);
+	}
+
+	if ((power & kPowerStatusVbusPresent) != (lastPower & kPowerStatusVbusPresent)
+		|| type != lastType) {
+		acpi_battery_info info;
+		battery_info(&info);
+		TRACE("USB power %s (%s), input limit %" B_PRIu32 " mA, status %#x; "
+			"battery %" B_PRIu32 " mA, %s\n",
+			(power & kPowerStatusVbusPresent) != 0 ? "present" : "absent",
+			kChargerTypes[type & 7], kInputCurrentLimits[limitIndex & 7],
+			power, info.current_rate,
+			(info.state & BATTERY_CHARGING) != 0 ? "charging"
+				: (info.state & BATTERY_DISCHARGING) != 0 ? "discharging"
+				: "not charging");
+	}
+	lastPower = power;
+	lastType = type;
+}
+
+
 // #pragma mark - power key
 
 
 static status_t
 poll_thread(void*)
 {
+	uint8 lastPower = 0xff, lastType = 0xff;
+	int32 round = 0;
 	while (!sQuit) {
+		// the charger type is known a while after the cable is plugged in
+		if (round++ % 10 == 0)
+			check_usb_power(lastPower, lastType);
+
 		uint8 status;
 		if (pmic_read(kRegisterIrqStatus5, &status) == B_OK
 			&& (status & (kIrqPekShort | kIrqPekLong)) != 0) {
