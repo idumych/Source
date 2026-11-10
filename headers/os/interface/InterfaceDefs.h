@@ -496,6 +496,8 @@ void			run_be_about();
 void			set_focus_follows_mouse(bool follow);
 bool			focus_follows_mouse();
 
+bool			is_composited_desktop();
+
 void			set_mouse_mode(mode_mouse mode);
 mode_mouse		mouse_mode();
 

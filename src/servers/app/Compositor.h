@@ -82,6 +82,9 @@ private:
 									const BRegion& region);
 			void				_Blend(RenderingBuffer* target, Window* window,
 									const BRegion& region, uint8 alpha);
+			void				_BlendPixels(RenderingBuffer* target,
+									Window* window, const BRegion& region,
+									uint8 alpha);
 			void				_BlendEdges(RenderingBuffer* target,
 									Window* window, const BRegion& region,
 									uint8 alpha);
