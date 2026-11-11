@@ -21,6 +21,7 @@ namespace BPrivate {
 class HaikuControlLook : public BControlLook {
 public:
 								HaikuControlLook();
+								HaikuControlLook(BControlLook* outer);
 	virtual						~HaikuControlLook();
 
 	virtual BAlignment			DefaultLabelAlignment() const;
@@ -574,6 +575,7 @@ protected:
 
 private:
 			bool				fCachedOutline;
+			BControlLook*		fOuter;
 };
 
 
