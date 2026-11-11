@@ -1147,6 +1147,26 @@ set_mouse_mode(mode_mouse mode)
 }
 
 
+/*!	Returns whether the desktop is built by a compositor, so that windows with
+	B_TRANSPARENT_WINDOW can be seen through. This doesn't change while
+	app_server runs.
+*/
+bool
+is_composited_desktop()
+{
+	bool composited = false;
+
+	BPrivate::AppServerLink link;
+	link.StartMessage(AS_IS_DESKTOP_COMPOSITED);
+
+	int32 code;
+	if (link.FlushWithReply(code) == B_OK && code == B_OK)
+		link.Read<bool>(&composited);
+
+	return composited;
+}
+
+
 mode_mouse
 mouse_mode()
 {
