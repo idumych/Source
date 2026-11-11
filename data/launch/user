@@ -71,17 +71,7 @@ target installer {
 }
 
 run {
-	if {
-		file_exists /system/bin/FirstBootPrompt
-		or {
-			not file_exists /boot/home/config/settings/Locale\ settings
-			read_only
-		}
-	}
-	then {
-		first_boot
-	}
-	else {
-		desktop
-	}
+	# Power Renku goes straight to the desktop, live or installed: there's
+	# no first-boot prompt. The Installer is in the Deskbar's Applications.
+	desktop
 }
