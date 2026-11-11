@@ -12,6 +12,7 @@
 
 #include "DecorManager.h"
 #include "Decorator.h"
+#include "RoundedDecorator.h"
 
 
 /*!	Loads decorator styles: add-ons exporting instantiate_decor_style(),
@@ -40,7 +41,7 @@ private:
 	draws it, through the plain structures of DecorStyle.h, and this does
 	the rest, as app_server's own decorators do.
 */
-class StyleDecorator : public Decorator {
+class StyleDecorator : public Decorator, public RoundedDecorator {
 public:
 								StyleDecorator(DesktopSettings& settings,
 									BRect frame, Desktop* desktop,
@@ -62,6 +63,11 @@ public:
 	virtual	void				GetSizeLimits(int32* minWidth,
 									int32* minHeight, int32* maxWidth,
 									int32* maxHeight) const;
+
+	// RoundedDecorator
+	virtual	void				GetRoundedShape(
+									std::vector<Decorator::ShapeRect>& shape)
+										const;
 
 protected:
 	struct Tab : public Decorator::Tab {
