@@ -4451,27 +4451,29 @@ ServerWindow::HandleDirectConnection(int32 bufferState, int32 driverState)
 		"%" B_PRId32 ")\n", bufferState, driverState));
 
 	status_t status;
-	WindowBuffer* buffer = const_cast<WindowBuffer*>(fWindow->Buffer());
-	if (buffer != NULL && buffer->InitCheck() == B_OK && buffer->Area() >= 0) {
-		// When compositing, the application draws to the window's buffer, and
-		// the compositor puts that on the screen like everything else. As the
-		// protocol has no way to say where in an area the screen's origin is,
-		// the coordinates start at the buffer's left top.
-		BPoint origin = buffer->Frame().LeftTop();
-		BRect frame = fWindow->Frame();
-		frame.OffsetBy(-origin);
+	WindowBuffer* buffer = NULL;
+	if (fWindow->BufferInterface() != NULL) {
+		buffer = const_cast<WindowBuffer*>(
+			&fWindow->BufferInterface()->Buffer());
+	}
+	if (buffer != NULL && buffer->HasScreenLayout() && buffer->Area() >= 0) {
+		// When compositing, the application draws to the window's buffer,
+		// which is laid out like the screen, and the compositor puts that on
+		// the screen like everything else. Everything else is as without
+		// compositing, screen coordinates included.
 		BRegion clip;
 		fWindow->GetContentRegion(&clip);
-		BRegion bufferFrame(buffer->Frame());
-		clip.IntersectWith(&bufferFrame);
-		clip.OffsetBy((int32)-origin.x, (int32)-origin.y);
+		BRegion screen(BRect(0, 0, buffer->ScreenWidth() - 1,
+			buffer->ScreenHeight() - 1));
+		clip.IntersectWith(&screen);
 
 		status = fDirectWindowInfo->SetState(
 			(direct_buffer_state)bufferState, (direct_driver_state)driverState,
-			buffer, frame, clip, buffer->Area());
-	} else if (fDesktop->GetCompositor() != NULL
+			buffer, fWindow->Frame(), clip, buffer->Area());
+	} else if (buffer != NULL
 		&& (bufferState & B_DIRECT_MODE_MASK) != B_DIRECT_STOP) {
-		// There is nothing to draw to yet: the window gets it once there is.
+		// There is nothing to draw to yet: the buffer gets its layout when
+		// the clipping is rebuilt, which comes first.
 		return;
 	} else {
 		status = fDirectWindowInfo->SetState(
