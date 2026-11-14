@@ -376,9 +376,4 @@ void
 WindowBufferHWInterface::_Damaged(const BRegion& region)
 {
 	fCompositor->Composite(region);
-
-	// An application with direct access draws to the screen on its own. What
-	// the window draws must get there first, as it isn't redrawn on top.
-	if (fWindow != NULL && fWindow->ServerWindow()->IsDirectlyAccessing())
-		fCompositor->FlushLocked();
 }

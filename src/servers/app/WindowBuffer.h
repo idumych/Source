@@ -46,6 +46,9 @@ public:
 			BRect				Frame() const;
 
 			void				Release();
+			// The area holding the pixels, which start at the left top of
+			// Frame().
+			area_id				Area() const { return fArea; }
 
 			// Memory address of a pixel inside of Frame(), in screen
 			// coordinates.

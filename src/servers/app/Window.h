@@ -30,6 +30,7 @@
 
 
 class Window;
+class WindowBuffer;
 class WindowBufferHWInterface;
 
 
@@ -123,7 +124,8 @@ public:
 			BRegion&			VisibleContentRegion();
 
 			// The part of the content that can really be seen on screen.
-			void				GetOnScreenContentRegion(BRegion* region);
+			// When compositing, the buffer the window draws to, or NULL.
+			const WindowBuffer*	Buffer() const;
 
 			// When compositing, the window's own buffer. It takes ownership.
 			void				SetBufferInterface(
@@ -497,7 +499,6 @@ private:
 								fBufferInterface;
 			BRegion				fCompositeRegion;
 			WindowShape			fShape;
-			BRegion				fOnScreenRegion;
 			BPoint				fBufferOffset;
 			bool				fBufferReady;
 			bool				fHasRoundedCorners;

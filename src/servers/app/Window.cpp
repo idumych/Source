@@ -211,8 +211,6 @@ Window::SetClipping(BRegion* stillAvailableOnScreen)
 
 	if (fBufferInterface.IsSet()) {
 		fCompositeRegion = fVisibleRegion;
-		fOnScreenRegion = fVisibleRegion;
-		fOnScreenRegion.IntersectWith(stillAvailableOnScreen);
 
 		BRect frame = fCompositeRegion.Frame();
 		fBufferInterface->SetFrame(frame);
@@ -287,16 +285,12 @@ Window::SetClipping(BRegion* stillAvailableOnScreen)
 }
 
 
-void
-Window::GetOnScreenContentRegion(BRegion* region)
+const WindowBuffer*
+Window::Buffer() const
 {
-	if (!fBufferInterface.IsSet()) {
-		*region = VisibleContentRegion();
-		return;
-	}
-
-	GetContentRegion(region);
-	region->IntersectWith(&fOnScreenRegion);
+	if (!fBufferInterface.IsSet())
+		return NULL;
+	return &fBufferInterface->Buffer();
 }
 
 
