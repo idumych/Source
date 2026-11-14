@@ -176,7 +176,7 @@ pll_ppll_ss_probe(pll_info* pll, uint32 ssID)
 	}
 
 	struct _ATOM_SPREAD_SPECTRUM_INFO *ss_info
-		= (struct _ATOM_SPREAD_SPECTRUM_INFO*)((uint16*)gAtomContext->bios
+		= (struct _ATOM_SPREAD_SPECTRUM_INFO*)(gAtomContext->bios
 		+ headerOffset);
 
 	int indices = (headerSize - sizeof(ATOM_COMMON_TABLE_HEADER))
@@ -226,7 +226,7 @@ pll_asic_ss_probe(pll_info* pll, uint32 ssID)
 	};
 
 	union asicSSInfo *ss_info
-		= (union asicSSInfo*)((uint16*)gAtomContext->bios + headerOffset);
+		= (union asicSSInfo*)(gAtomContext->bios + headerOffset);
 
 	int i;
 	int indices;
@@ -800,6 +800,13 @@ pll_set(display_mode* mode, uint8 crtcID)
 		// get any needed clock adjustments, set reference/post dividers
 	pll_compute(pll);
 		// compute dividers and spread spectrum
+
+	// On DisplayPort the dividers target the link clock, so pll_compute()
+	// may have replaced the pixel clock with a link-derived one. The
+	// SetPixelClock table needs the mode's pixel clock there.
+	if (encoderMode == ATOM_ENCODER_MODE_DP
+		|| encoderMode == ATOM_ENCODER_MODE_DP_MST)
+		pll->pixelClock = mode->timing.pixel_clock;
 
 	uint8 tableMajor;
 	uint8 tableMinor;
