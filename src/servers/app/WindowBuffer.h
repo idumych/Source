@@ -27,6 +27,12 @@ class Window;
 	The pixels left of or above the screen can't be addressed this way. Drawing
 	must be clipped to positive coordinates, so these parts of a window are not
 	drawn, and need a redraw when they are moved into view.
+
+	A window with direct access draws to the buffer itself, in screen
+	coordinates, so its buffer is laid out like the screen: SetScreenLayout()
+	makes Bits() the start of the memory, and Frame() is kept on the screen.
+	Only the pages the window covers are used, and moving the window moves its
+	pixels, as they would move on the screen.
 */
 class WindowBuffer : public RenderingBuffer {
 public:
@@ -43,9 +49,20 @@ public:
 
 			// Returns true if Bits(), Width() or Height() have changed.
 			bool				SetFrame(const BRect& frame);
+			// Lays the buffer out like a screen of \a width by \a height
+			// pixels, or as usual with 0 for both. Returns true if Bits(),
+			// Width() or Height() have changed.
+			bool				SetScreenLayout(int32 width, int32 height);
+			bool				HasScreenLayout() const
+									{ return fScreenWidth > 0; }
+			int32				ScreenWidth() const { return fScreenWidth; }
+			int32				ScreenHeight() const { return fScreenHeight; }
 			BRect				Frame() const;
 
 			void				Release();
+			// The area holding the pixels. They start at the left top of
+			// Frame(), or of the screen in the screen layout.
+			area_id				Area() const { return fArea; }
 
 			// Memory address of a pixel inside of Frame(), in screen
 			// coordinates.
@@ -54,6 +71,9 @@ public:
 private:
 			bool				_Reallocate(int32 width, int32 height,
 									bool shrink);
+			bool				_AllocateScreen();
+			void				_MovePixels(const BRect& from, int32 x,
+									int32 y);
 
 private:
 			area_id				fArea;
@@ -64,6 +84,10 @@ private:
 			int32				fTop;
 			int32				fWidth;
 			int32				fHeight;
+			int32				fScreenWidth;
+			int32				fScreenHeight;
+			int32				fFrameLeft;
+			int32				fFrameTop;
 };
 
 
@@ -78,6 +102,7 @@ public:
 			void				SetWindow(Window* window) { fWindow = window; }
 
 			void				SetFrame(const BRect& frame);
+			void				SetScreenLayout(int32 width, int32 height);
 			void				ReleaseBuffer() { fBuffer.Release(); }
 			const WindowBuffer&	Buffer() const { return fBuffer; }
 
