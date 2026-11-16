@@ -1513,11 +1513,13 @@ AccelerantHWInterface::PresentRegion(const BRegion& region)
 	// in the order the cursor code takes them
 	BAutolock overlays(fFloatingOverlaysLock);
 	BAutolock _(fFlipLock);
+	BRegion frame(region);
+	_TakeCursorDamage(frame);
 	if (!fFlipping)
-		return InvalidateRegion(region);
+		return InvalidateRegion(frame);
 
 	int32 page = 1 - fShownPage;
-	BRegion update(region);
+	BRegion update(frame);
 	update.Include(&fPageBehind);
 
 	fWritePage = page;
@@ -1535,7 +1537,7 @@ AccelerantHWInterface::PresentRegion(const BRegion& region)
 	}
 
 	fShownPage = page;
-	fPageBehind = region;
+	fPageBehind = frame;
 
 	// The on-screen KDL draws where the screen is.
 	RenderingBuffer* shown = FrontBuffer();

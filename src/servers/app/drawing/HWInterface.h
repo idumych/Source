@@ -160,12 +160,20 @@ public:
 
 	// A finished frame: where the screen can flip between two pages, it is
 	// copied to the hidden one, which is shown from the next retrace on.
-	virtual	status_t			PresentRegion(const BRegion& region)
-									{ return InvalidateRegion(region); }
+	virtual	status_t			PresentRegion(const BRegion& region);
+	// The drawing buffer has a frame that isn't on the screen yet. The
+	// cursor is drawn from the drawing buffer: until the frame is presented,
+	// it is only moved, and the frame then draws it where it is.
+			void				SetFramePending();
+	// The frame isn't presented after all.
+			void				CancelPendingFrame();
 	virtual	void				SetPageFlipping(bool enable) {}
 
 protected:
 	virtual	void				_CopyBackToFront(/*const*/ BRegion& region);
+	// Adds where the cursor was and is now, while a frame was pending, to
+	// \a update. The floating overlays lock must be held.
+			void				_TakeCursorDamage(BRegion& update);
 
 public:
 	// TODO: Just a quick and primitive way to get single buffered mode working.
@@ -254,6 +262,8 @@ protected:
 			ObjectDeleter<buffer_clip>
 								fCursorAreaBackup;
 	mutable	BLocker				fFloatingOverlaysLock;
+			bool				fFramePending;
+			BRegion				fPendingCursorDamage;
 
 			ServerCursorReference
 								fCursor;

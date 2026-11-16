@@ -347,14 +347,14 @@ Compositor::_Present(const BRegion& region)
 
 	BAutolock _(fLock);
 
-	if (fDesktop->IsDirectScreenLocked())
-		return;
-
 	::HWInterface* interface = fDesktop->HWInterface();
 	if (!interface->LockParallelAccess())
 		return;
 
-	interface->PresentRegion(region);
+	if (fDesktop->IsDirectScreenLocked())
+		interface->CancelPendingFrame();
+	else
+		interface->PresentRegion(region);
 
 	interface->UnlockParallelAccess();
 }
@@ -503,9 +503,11 @@ Compositor::_Composite(const BRegion& damage, BRegion* present)
 	bool cursorLocked = interface->LockFloatingOverlays();
 	_DrawBands(screenDamage);
 
-	if (present != NULL)
+	if (present != NULL) {
 		present->Include(&screenDamage);
-	else
+		if (screenDamage.CountRects() > 0)
+			interface->SetFramePending();
+	} else
 		interface->InvalidateRegion(screenDamage);
 	if (cursorLocked)
 		interface->UnlockFloatingOverlays();
