@@ -63,8 +63,12 @@
 #include <SupportDefs.h>
 
 
-#define DECOR_STYLE_API_VERSION		2
-	// 2: rounded corners on a composited desktop
+/*!	Versions 1 and 2 were drafts: styles were built against them, with other
+	structure layouts, before the interface settled. Version 3 is the first
+	final one, and app_server refuses anything older. Version 4 adds rounded
+	corners on a composited desktop.
+*/
+#define DECOR_STYLE_API_VERSION		4
 
 
 #ifdef __cplusplus
@@ -260,7 +264,7 @@ typedef struct decor_window {
 	// the style's own: free to use from create_window() on
 	void*					cookie;
 
-	// in, from version 2
+	// in, from version 4
 	bool					corners_cut;
 		// the compositor cuts off the corners that rounded_shape() gives,
 		// and the border should follow them, as with canvas->stroke_corner()
@@ -386,7 +390,7 @@ struct decor_canvas {
 	void					(*set_copy_to_front)(decor_canvas* canvas,
 								bool enabled);
 
-	// from version 2: the line of a border along a corner the compositor
+	// from version 4: the line of a border along a corner the compositor
 	// cuts off; \a left_top is the corner square's, \a corner a
 	// DECOR_CORNER_*
 	void					(*stroke_corner)(decor_canvas* canvas,
@@ -480,7 +484,7 @@ typedef struct decor_style {
 	void					(*update_colors)(decor_window* window,
 								decor_canvas* canvas);
 
-	// from version 2: rounds the corners of the frame's outline, given as
+	// from version 4: rounds the corners of the frame's outline, given as
 	// the frame (first) and its tabs, by setting their radii; NULL keeps
 	// them square
 	void					(*rounded_shape)(decor_window* window,
