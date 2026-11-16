@@ -203,14 +203,21 @@ Compositor::Flush()
 void
 Compositor::ScreenTaken()
 {
-	// _Composite() looks at the owner of the screen with this held.
-	BAutolock _(fLock);
+	{
+		// _Composite() looks at the owner of the screen with this held.
+		BAutolock _(fLock);
+	}
+
+	// The application draws to the first page.
+	fDesktop->HWInterface()->SetPageFlipping(false);
 }
 
 
 void
 Compositor::ScreenReleased()
 {
+	fDesktop->HWInterface()->SetPageFlipping(true);
+
 	BRegion all((BRect)fDesktop->HWInterface()->DrawingBuffer()->Bounds());
 	Composite(all);
 }
@@ -347,7 +354,7 @@ Compositor::_Present(const BRegion& region)
 	if (!interface->LockParallelAccess())
 		return;
 
-	interface->InvalidateRegion(region);
+	interface->PresentRegion(region);
 
 	interface->UnlockParallelAccess();
 }

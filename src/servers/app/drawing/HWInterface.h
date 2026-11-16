@@ -147,6 +147,12 @@ public:
 	// while CopyBackToFront() actually performs the operation
 	virtual	status_t			CopyBackToFront(const BRect& frame);
 
+	// A finished frame: where the screen can flip between two pages, it is
+	// copied to the hidden one, which is shown from the next retrace on.
+	virtual	status_t			PresentRegion(const BRegion& region)
+									{ return InvalidateRegion(region); }
+	virtual	void				SetPageFlipping(bool enable) {}
+
 protected:
 	virtual	void				_CopyBackToFront(/*const*/ BRegion& region);
 
