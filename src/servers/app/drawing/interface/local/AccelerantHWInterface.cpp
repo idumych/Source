@@ -1482,8 +1482,10 @@ AccelerantHWInterface::FrontBuffer() const
 }
 
 
-/*!	Outside of a frame, both pages are kept up to date. The object must be
-	locked.
+/*!	Outside of a frame, such as for the cursor, only the page last flipped
+	to is updated: the other one may still be on the screen until the next
+	retrace, and must not get the newer pixels before the rest of them. It
+	gets them with the next frame. The object must be locked.
 */
 status_t
 AccelerantHWInterface::CopyBackToFront(const BRect& frame)
@@ -1494,10 +1496,8 @@ AccelerantHWInterface::CopyBackToFront(const BRect& frame)
 	// The cursor code holds the overlays lock when it gets here.
 	BAutolock overlays(fFloatingOverlaysLock);
 	BAutolock _(fFlipLock);
-	int32 shown = fShownPage;
-	fWritePage = 1 - shown;
-	HWInterface::CopyBackToFront(frame);
-	fWritePage = shown;
+	fWritePage = fShownPage;
+	fPageBehind.Include(frame);
 	return HWInterface::CopyBackToFront(frame);
 }
 
