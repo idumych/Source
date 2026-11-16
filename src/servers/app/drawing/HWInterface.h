@@ -107,6 +107,14 @@ public:
 	virtual status_t			GetAccelerantPath(BString& path);
 	virtual status_t			GetDriverPath(BString& path);
 
+	// screen rotation, in degrees clockwise: the drawing buffer is turned by
+	// it on the way to the screen, and is as wide as the screen is high when
+	// it is 90 or 270
+	virtual	status_t			SetRotation(int32 degrees);
+			int32				Rotation() const { return fRotation; }
+	static	bool				IsValidRotation(int32 degrees);
+	static	void				RotateMode(display_mode& mode, int32 degrees);
+
 	// cursor handling (these do their own Read/Write locking)
 			ServerCursorReference Cursor() const;
 			ServerCursorReference CursorAndDragBitmap() const;
@@ -146,6 +154,9 @@ public:
 	virtual	status_t			Invalidate(const BRect& frame);
 	// while CopyBackToFront() actually performs the operation
 	virtual	status_t			CopyBackToFront(const BRect& frame);
+	// puts B_RGBA32 pixels laid out like the drawing buffer on the screen
+			void				CopyToScreen(const uint8* bits,
+									uint32 bytesPerRow, const IntRect& area);
 
 	// A finished frame: where the screen can flip between two pages, it is
 	// copied to the hidden one, which is shown from the next retrace on.
@@ -186,6 +197,9 @@ protected:
 	// does the actual transfer and handles color space conversion
 			void				_CopyToFront(uint8* src, uint32 srcBPR, int32 x,
 									int32 y, int32 right, int32 bottom) const;
+			void				_CopyToFrontRotated(const uint8* src,
+									uint32 srcBPR, int32 x, int32 y,
+									int32 right, int32 bottom) const;
 
 			IntRect				_CursorFrame() const;
 			void				_RestoreCursorArea() const;
@@ -248,6 +262,7 @@ protected:
 			BRect				fTrackingRect;
 
 			int					fVGADevice;
+			int32				fRotation;
 
 private:
 			BList				fListeners;

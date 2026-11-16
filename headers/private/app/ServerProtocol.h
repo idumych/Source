@@ -387,6 +387,14 @@ enum {
 	AS_SET_COMPOSITED_WOBBLINESS,
 	AS_GET_COMPOSITED_WOBBLINESS,
 
+	// Screen rotation, in degrees clockwise
+	AS_SCREEN_SET_ROTATION,
+	AS_SCREEN_GET_ROTATION,
+
+	// A screen of its own for a BWindowScreen that can't have the real one
+	AS_EMULATE_SCREEN,
+	AS_STOP_SCREEN_EMULATION,
+
 	AS_LAST_CODE
 };
 
