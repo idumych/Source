@@ -1137,6 +1137,11 @@ Compositor::_StepWobbles()
 				if (!wobble->model.SetFrame(frame)) {
 					_InitWobbleMasks(wobble);
 					wobble->model.Resize(frame);
+				} else if (_WobbleBufferMoved(wobble, window)) {
+					// A window with direct access only has the part of it
+					// on the screen in its buffer, which changes as it moves
+					// over the screen's edge.
+					_InitWobbleMasks(wobble);
 				}
 			}
 			wobble->grabPending = false;
@@ -1424,6 +1429,21 @@ Compositor::_InitWobbleMasks(Wobble* wobble)
 			wobble->solidRight[y] = x - 1;
 		}
 	}
+}
+
+
+/*!	Whether the part of the window that its buffer has is no longer the one
+	the wobble's masks were made for.
+*/
+bool
+Compositor::_WobbleBufferMoved(const Wobble* wobble, Window* window) const
+{
+	const BRect frame = window->Shape().Bounds();
+	const BRect bufferFrame = window->BufferInterface()->Buffer().Frame();
+	return (int32)bufferFrame.left - (int32)frame.left != wobble->bufferLeft
+		|| (int32)bufferFrame.top - (int32)frame.top != wobble->bufferTop
+		|| bufferFrame.IntegerWidth() + 1 != wobble->bufferWidth
+		|| bufferFrame.IntegerHeight() + 1 != wobble->bufferHeight;
 }
 
 

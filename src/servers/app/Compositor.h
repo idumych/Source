@@ -128,6 +128,8 @@ private:
 			Wobble*				_WobbleFor(const Window* window) const;
 			void				_InitWobble(Wobble* wobble);
 			void				_InitWobbleMasks(Wobble* wobble);
+			bool				_WobbleBufferMoved(const Wobble* wobble,
+									Window* window) const;
 			void				_UpdateWobbleArea(Wobble* wobble);
 			void				_DrawWobble(RenderingBuffer* target,
 									Window* window, const Wobble* wobble,
