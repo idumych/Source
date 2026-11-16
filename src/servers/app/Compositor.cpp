@@ -496,12 +496,19 @@ Compositor::_Composite(const BRegion& damage, BRegion* present)
 	fBandBackground = &remaining;
 	fBandColor = fDesktop->CurrentBackgroundColor();
 	fBandLayerCount = layerCount;
+
+	// Under a wobbling or see-through window, a pixel is written more than
+	// once on its way to the frame: the cursor, drawn from here, would show
+	// what is in between, like the desktop or a shadow.
+	bool cursorLocked = interface->LockFloatingOverlays();
 	_DrawBands(screenDamage);
 
 	if (present != NULL)
 		present->Include(&screenDamage);
 	else
 		interface->InvalidateRegion(screenDamage);
+	if (cursorLocked)
+		interface->UnlockFloatingOverlays();
 
 	interface->UnlockParallelAccess();
 }

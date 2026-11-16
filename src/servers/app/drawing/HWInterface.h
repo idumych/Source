@@ -186,6 +186,14 @@ public:
 			bool				HideFloatingOverlays();
 			void				ShowFloatingOverlays();
 
+	// The software cursor is drawn from the drawing buffer. While a
+	// compositor builds a frame there, it keeps the cursor from showing the
+	// frame half built.
+			bool				LockFloatingOverlays()
+									{ return fFloatingOverlaysLock.Lock(); }
+			void				UnlockFloatingOverlays()
+									{ fFloatingOverlaysLock.Unlock(); }
+
 	// Listener support
 			bool				AddListener(HWInterfaceListener* listener);
 			void				RemoveListener(HWInterfaceListener* listener);
