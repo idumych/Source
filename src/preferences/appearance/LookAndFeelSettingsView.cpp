@@ -479,7 +479,7 @@ LookAndFeelSettingsView::IsDefaultable()
 	return fCurrentDecor != fDecorUtility.DefaultDecorator()->ShortcutName()
 		|| fCurrentControlLook.Length() != 0
 		|| _DoubleScrollBarArrows() != false
-		|| _ZSnake();
+		|| !_ZSnake();
 }
 
 
@@ -489,7 +489,7 @@ LookAndFeelSettingsView::SetDefaults()
 	_SetDecor(fDecorUtility.DefaultDecorator());
 	_SetControlLook(BString(""));
 	_SetDoubleScrollBarArrows(false);
-	_SetZSnake(false);
+	_SetZSnake(true);
 }
 
 
