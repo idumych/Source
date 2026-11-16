@@ -1393,8 +1393,8 @@ ScreenWindow::_CheckApplyEnabled()
 			screen_mode screenMode;
 			const int32 workspaceCount = count_workspaces();
 			for (int32 i = 0; i < workspaceCount; i++) {
-				fScreenMode.Get(screenMode, i);
-				if (screenMode != fSelected) {
+				if (fScreenMode.Get(screenMode, i) == B_OK
+					&& screenMode != fSelected) {
 					applyEnabled = true;
 					break;
 				}
