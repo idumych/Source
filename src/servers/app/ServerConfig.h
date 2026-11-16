@@ -27,13 +27,13 @@
 
 // Whether windows draw to their own buffers, which a compositor then combines
 // to make up the screen, until the Appearance preferences say otherwise.
-#define COMPOSITED_DESKTOP_DEFAULT false
+#define COMPOSITED_DESKTOP_DEFAULT true
 
 // What the compositor adds to windows when it is used.
 #define COMPOSITED_SHADOWS_DEFAULT true
 #define COMPOSITED_ROUNDED_CORNERS_DEFAULT true
-#define COMPOSITED_DRAG_TRANSPARENCY_DEFAULT false
-#define COMPOSITED_WOBBLY_WINDOWS_DEFAULT false
+#define COMPOSITED_DRAG_TRANSPARENCY_DEFAULT true
+#define COMPOSITED_WOBBLY_WINDOWS_DEFAULT true
 #define COMPOSITED_WOBBLINESS_DEFAULT 50
 
 // These definitions provide the server something to use for default

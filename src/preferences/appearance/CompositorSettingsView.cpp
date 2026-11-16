@@ -33,11 +33,11 @@ static const int32 kMsgWobbly = 'cmpo';
 static const int32 kMsgWobbliness = 'cmpl';
 
 // What app_server uses until it is told otherwise
-static const bool kDefaultComposited = false;
+static const bool kDefaultComposited = true;
 static const bool kDefaultShadows = true;
 static const bool kDefaultRoundedCorners = true;
-static const bool kDefaultDragTransparency = false;
-static const bool kDefaultWobbly = false;
+static const bool kDefaultDragTransparency = true;
+static const bool kDefaultWobbly = true;
 static const int32 kDefaultWobbliness = 50;
 
 
