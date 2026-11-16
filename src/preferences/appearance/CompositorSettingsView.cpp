@@ -38,11 +38,11 @@ static const int32 kMsgGlass = 'cmpg';
 static const int32 kMsgGlassOpacity = 'cmpa';
 
 // What app_server uses until it is told otherwise
-static const bool kDefaultComposited = false;
+static const bool kDefaultComposited = true;
 static const bool kDefaultShadows = true;
 static const bool kDefaultRoundedCorners = true;
-static const bool kDefaultDragTransparency = false;
-static const bool kDefaultWobbly = false;
+static const bool kDefaultDragTransparency = true;
+static const bool kDefaultWobbly = true;
 static const int32 kDefaultWobbliness = 50;
 static const int32 kDefaultGlass = 0;
 static const int32 kDefaultGlassOpacity = 70;
