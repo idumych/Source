@@ -108,6 +108,8 @@ static const uint8 kFuelGaugeValid = 1u << 7;
 // the PinePhone's battery
 static const uint32 kNominalCapacity = 3000;	// mAh
 static const uint32 kNominalVoltage = 3800;		// mV
+static const uint32 kEmptyVoltage = 3000;		// mV, a Li-ion cell at 0 %
+static const uint32 kFullVoltage = 4200;		// mV, and at 100 %
 
 static const char* sDeviceNames[] = {
 	"power/button/power",
@@ -232,6 +234,16 @@ rsb_init()
 }
 
 
+struct battery_raw {
+	uint8	gauge;
+	uint32	voltage;	// mV
+	uint32	charge;		// mA
+	uint32	discharge;	// mA
+	bool	present;
+};
+
+static status_t read_battery(acpi_battery_info* info, battery_raw* raw);
+static void check_battery(uint32& lastPercent, uint32& lastState);
 static status_t battery_info(acpi_battery_info* info);
 
 
@@ -286,11 +298,16 @@ static status_t
 poll_thread(void*)
 {
 	uint8 lastPower = 0xff, lastType = 0xff;
+	uint32 lastPercent = UINT32_MAX, lastState = UINT32_MAX;
 	int32 round = 0;
 	while (!sQuit) {
 		// the charger type is known a while after the cable is plugged in
-		if (round++ % 10 == 0)
+		if (round % 10 == 0)
 			check_usb_power(lastPower, lastType);
+		// a few seconds after the ADCs were switched on, then every 10 s
+		if (round % 100 == 50)
+			check_battery(lastPercent, lastState);
+		round++;
 
 		uint8 status;
 		if (pmic_read(kRegisterIrqStatus5, &status) == B_OK
@@ -329,10 +346,25 @@ read_adc(uint8 reg, uint32* value)
 }
 
 
+/*!	The charge from the voltage alone: linear between an empty and a full
+	cell, which reads high in the middle of the curve and while charging. */
+static uint32
+percent_from_voltage(uint32 voltage)
+{
+	if (voltage <= kEmptyVoltage)
+		return 0;
+	if (voltage >= kFullVoltage)
+		return 100;
+	return (voltage - kEmptyVoltage) * 100 / (kFullVoltage - kEmptyVoltage);
+}
+
+
 static status_t
-battery_info(acpi_battery_info* info)
+read_battery(acpi_battery_info* info, battery_raw* raw)
 {
 	memset(info, 0, sizeof(*info));
+	if (raw != NULL)
+		memset(raw, 0, sizeof(*raw));
 
 	uint8 power, mode, gauge;
 	status_t status = pmic_read(kRegisterPowerStatus, &power);
@@ -342,6 +374,8 @@ battery_info(acpi_battery_info* info)
 		status = pmic_read(kRegisterFuelGauge, &gauge);
 	if (status != B_OK)
 		return status;
+	if (raw != NULL)
+		raw->gauge = gauge;
 	if ((mode & kPowerModeBatteryPresent) == 0)
 		return B_OK;
 
@@ -350,9 +384,20 @@ battery_info(acpi_battery_info* info)
 	read_adc(kRegisterChargeCurrent, &charge);
 	read_adc(kRegisterDischargeCurrent, &discharge);
 
-	uint32 percent = (gauge & kFuelGaugeValid) != 0 ? gauge & 0x7f : 0;
-	if (percent > 100)
-		percent = 100;
+	voltage = voltage * 11 / 10;
+	if (raw != NULL) {
+		raw->voltage = voltage;
+		raw->charge = charge;
+		raw->discharge = discharge;
+		raw->present = true;
+	}
+
+	// The fuel gauge can claim a full battery that cannot run the phone; no
+	// more than the voltage allows, and only the voltage while the gauge has
+	// no value
+	uint32 percent = percent_from_voltage(voltage);
+	if ((gauge & kFuelGaugeValid) != 0 && (gauge & 0x7f) < percent)
+		percent = gauge & 0x7f;
 	bool charging = (power & kPowerStatusCharging) != 0;
 
 	if (charging)
@@ -366,8 +411,38 @@ battery_info(acpi_battery_info* info)
 
 	info->capacity = percent * kNominalCapacity / 100;
 	info->current_rate = charging ? charge : discharge;
-	info->voltage = voltage * 11 / 10;
+	info->voltage = voltage;
 	return B_OK;
+}
+
+
+static status_t
+battery_info(acpi_battery_info* info)
+{
+	return read_battery(info, NULL);
+}
+
+
+static void
+check_battery(uint32& lastPercent, uint32& lastState)
+{
+	acpi_battery_info info;
+	battery_raw raw;
+	if (read_battery(&info, &raw) != B_OK)
+		return;
+	uint32 percent = info.capacity * 100 / kNominalCapacity;
+	if (percent == lastPercent && info.state == lastState)
+		return;
+	lastPercent = percent;
+	lastState = info.state;
+	if (!raw.present) {
+		TRACE("no battery (fuel gauge %#x)\n", raw.gauge);
+		return;
+	}
+	TRACE("battery %" B_PRIu32 "%%, %" B_PRIu32 " mV, charge %" B_PRIu32
+		" mA, discharge %" B_PRIu32 " mA, fuel gauge %#x, state %#" B_PRIx32
+		"\n", percent, raw.voltage, raw.charge, raw.discharge, raw.gauge,
+		info.state);
 }
 
 
@@ -643,13 +718,7 @@ init_driver()
 	}
 	resume_thread(sThread);
 
-	acpi_battery_info battery;
-	if (battery_info(&battery) == B_OK) {
-		TRACE("chip ID %#x, power key on; battery %" B_PRIu32 "%%, %"
-			B_PRIu32 " mV, %" B_PRIu32 " mA, state %#" B_PRIx32 "\n", chipId,
-			battery.capacity * 100 / kNominalCapacity, battery.voltage,
-			battery.current_rate, battery.state);
-	}
+	TRACE("chip ID %#x, power key on\n", chipId);
 	return B_OK;
 }
 
