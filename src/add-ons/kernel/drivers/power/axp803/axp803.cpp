@@ -89,10 +89,21 @@ static const uint8 kRegisterBatteryVoltage = 0x78;		// 12 bits, 1.1 mV
 static const uint8 kRegisterChargeCurrent = 0x7a;		// 12 bits, 1 mA
 static const uint8 kRegisterDischargeCurrent = 0x7c;	// 12 bits, 1 mA
 static const uint8 kRegisterAdcEnable = 0x82;
-static const uint8 kAdcEnableBattery = 0xe0;
-	// battery voltage, current, and the TS pin (Linux' AXP22X_ADC_EN1_MASK)
+static const uint8 kAdcEnableBattery = 0xe1;
+	// battery voltage and current, and the TS pin (bit 0); Linux'
+	// AXP22X_ADC_EN1_MASK, which its AXP813 ADC driver writes
 static const uint8 kPowerStatusVbusPresent = 1u << 5;
 static const uint8 kRegisterChargerDetection = 0x2f;	// bits 7:5
+static const uint8 kRegisterChargeColdLimit = 0x38;	// Linux' V_LTF_CHRG
+static const uint8 kRegisterChargeHotLimit = 0x39;	// Linux' V_HTF_CHRG
+	// TS pin voltages, 12.8 mV steps; the PMIC drives 80 uA into the
+	// battery's NTC thermistor (TS control 0xf2) and stops charging outside
+	// them. Its defaults (0xa5, 0x1f) suit a 10 kOhm NTC, but the PinePhone's
+	// battery reads 249 mV at room temperature, about 3.1 kOhm, and the PMIC
+	// took it for too hot to charge. For such an NTC (B about 3435), 0 C is
+	// about 8.9 kOhm, 710 mV, and 45 C about 1.5 kOhm, 120 mV.
+static const uint8 kChargeColdLimit = 0x37;		// 704 mV
+static const uint8 kChargeHotLimit = 0x09;		// 115 mV
 static const uint8 kRegisterBcGlobal = 0x2c;
 static const uint8 kBcEnable = 1u << 0;
 	// USB BC 1.2 charger detection (Linux' AXP813_BC_EN); without it the
@@ -458,6 +469,27 @@ check_battery(uint32& lastPercent, uint32& lastState)
 	pmic_read(0x34, &control2);
 	TRACE("charger: power mode %#x, VBUS path %#x, control %#x %#x\n", mode,
 		path, control1, control2);
+
+	// why charging stops (register names after Linux' axp20x.h, its AXP803
+	// interrupt table and AXP813 ADC driver): the latched interrupt status
+	// (0x49 bit 3 charging started, bit 2 done, bit 5 activation mode; 0x4a
+	// bit 7 and 5 too hot and too cold to charge), the TS pin's voltage
+	// (0x58, 0.8 mV steps) against the charge thresholds (0x38 cold, 0x39
+	// hot), the ADC enable and the TS pin control (bias current, when on)
+	uint8 irq[5] = {};
+	for (int i = 0; i < 5; i++)
+		pmic_read(0x48 + i, &irq[i]);
+	uint32 ts = 0;
+	read_adc(0x58, &ts);
+	uint8 coldLimit = 0, hotLimit = 0, adcEnable = 0, tsControl = 0;
+	pmic_read(kRegisterChargeColdLimit, &coldLimit);
+	pmic_read(kRegisterChargeHotLimit, &hotLimit);
+	pmic_read(kRegisterAdcEnable, &adcEnable);
+	pmic_read(0x84, &tsControl);
+	TRACE("charger: irq status %#x %#x %#x %#x %#x, TS %" B_PRIu32 " mV, "
+		"thresholds cold %#x hot %#x, ADC enable %#x, TS control %#x\n",
+		irq[0], irq[1], irq[2], irq[3], irq[4], ts * 8 / 10, coldLimit,
+		hotLimit, adcEnable, tsControl);
 }
 
 
@@ -722,6 +754,10 @@ init_driver()
 	pmic_read(kRegisterAdcEnable, &adc);
 	if ((adc & kAdcEnableBattery) != kAdcEnableBattery)
 		pmic_write(kRegisterAdcEnable, adc | kAdcEnableBattery);
+
+	// the battery temperature window for charging, for its NTC
+	pmic_write(kRegisterChargeColdLimit, kChargeColdLimit);
+	pmic_write(kRegisterChargeHotLimit, kChargeHotLimit);
 
 	// the charger type, for a higher input current limit on a charger
 	uint8 bc = 0;
