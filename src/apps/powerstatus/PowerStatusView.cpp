@@ -117,7 +117,9 @@ PowerStatusView::_Init()
 	fShowTime = false;
 	fShowStatusIcon = true;
 
-	fPercent = 1.0;
+	// An empty battery's first reading of 0 is skipped like a bad probe, so
+	// start from empty rather than full
+	fPercent = 0.0;
 	fTimeLeft = 0;
 
 	fHasNotifiedLowBattery = false;
