@@ -443,6 +443,17 @@ check_battery(uint32& lastPercent, uint32& lastState)
 		" mA, discharge %" B_PRIu32 " mA, fuel gauge %#x, state %#" B_PRIx32
 		"\n", percent, raw.voltage, raw.charge, raw.discharge, raw.gauge,
 		info.state);
+
+	// the charger's own view: power mode (charging, battery present,
+	// activation mode for a deeply discharged cell), VBUS path, charger
+	// control 1 and 2 (enable, target voltage and current, timers)
+	uint8 mode = 0, path = 0, control1 = 0, control2 = 0;
+	pmic_read(kRegisterPowerMode, &mode);
+	pmic_read(0x30, &path);
+	pmic_read(0x33, &control1);
+	pmic_read(0x34, &control2);
+	TRACE("charger: power mode %#x, VBUS path %#x, control %#x %#x\n", mode,
+		path, control1, control2);
 }
 
 
