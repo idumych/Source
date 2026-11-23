@@ -93,6 +93,10 @@ static const uint8 kAdcEnableBattery = 0xe0;
 	// battery voltage, current, and the TS pin (Linux' AXP22X_ADC_EN1_MASK)
 static const uint8 kPowerStatusVbusPresent = 1u << 5;
 static const uint8 kRegisterChargerDetection = 0x2f;	// bits 7:5
+static const uint8 kRegisterBcGlobal = 0x2c;
+static const uint8 kBcEnable = 1u << 0;
+	// USB BC 1.2 charger detection (Linux' AXP813_BC_EN); without it the
+	// PinePhone reported every charger type as unknown
 static const uint8 kRegisterInputCurrentLimit = 0x35;	// bits 7:4
 static const uint32 kInputCurrentLimits[] = {	// mA
 	100, 500, 900, 1500, 2000, 2500, 3000, 3500
@@ -718,6 +722,12 @@ init_driver()
 	pmic_read(kRegisterAdcEnable, &adc);
 	if ((adc & kAdcEnableBattery) != kAdcEnableBattery)
 		pmic_write(kRegisterAdcEnable, adc | kAdcEnableBattery);
+
+	// the charger type, for a higher input current limit on a charger
+	uint8 bc = 0;
+	pmic_read(kRegisterBcGlobal, &bc);
+	if ((bc & kBcEnable) == 0)
+		pmic_write(kRegisterBcGlobal, bc | kBcEnable);
 
 	sQuit = false;
 	sThread = spawn_kernel_thread(poll_thread, "axp803 power key",
