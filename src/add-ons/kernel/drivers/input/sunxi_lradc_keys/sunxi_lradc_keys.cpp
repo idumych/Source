@@ -9,11 +9,14 @@
 	voltage of their own through a resistor ladder; the controller signals
 	when a key goes down and comes back up. As in Linux' sun4i-lradc-keys.c,
 	the key is the button node (of the controller's device tree node) whose
-	voltage is closest to what was measured when it went down. A sample taken
-	while the voltage is still falling from its idle level can read well above
-	every button, so a key is only decided once two consecutive samples fall
-	within the tolerance of the same button; until then every sample
-	interrupts.
+	voltage the measurement is closest to: each button owns the range up to
+	halfway to its neighbours. The voltage falls from its idle level when a
+	key goes down, so an early sample can read above every button, and a
+	press of the lowest button passes through the ranges of the others on
+	its way. While a key is undecided every sample interrupts; the lowest
+	button is decided by two consecutive samples in its range, another by
+	kSettleSamples of them, and a press released before then by its lowest
+	sample.
 
 	The keys are published as a keyboard (input/keyboard/lradc/0) that
 	reports HID consumer page key codes, which the Shortcuts preferences bind
@@ -74,7 +77,8 @@
 static const size_t kMaxButtons = 8;
 static const size_t kQueueSize = 16;
 static const uint32 kNoButton = UINT32_MAX;
-static const uint32 kMaxTolerance = 100000;	// µV
+static const uint32 kSettleSamples = 10;
+	// 40 ms at 250 Hz: longer than the voltage takes to fall through a range
 
 
 static device_manager_info* sDeviceManager;
@@ -82,6 +86,8 @@ static device_manager_info* sDeviceManager;
 
 struct lradc_button {
 	uint32				voltage;	// µV
+	uint32				low;		// µV, the range the button owns
+	uint32				high;
 	uint32				keycode;
 };
 
@@ -95,11 +101,12 @@ struct lradc_device {
 
 	lradc_button		buttons[kMaxButtons];
 	uint32				buttonCount;
-	uint32				tolerance;	// µV
+	uint32				lowestButton;
 	uint32				pressedKey;
 	bool				sampling;	// went down, the key is not decided yet
 	uint32				candidate;	// button of the last sample
-	uint32				candidateVoltage;
+	uint32				candidateCount;	// consecutive samples in its range
+	uint32				lowestVoltage;	// of this press
 
 	spinlock			queueLock;
 	raw_key_info		queue[kQueueSize];
@@ -169,22 +176,17 @@ read_voltage(lradc_device* device)
 }
 
 
-/*!	The button whose voltage the reading is within the tolerance of, or
-	kNoButton. */
+/*!	The button whose range the reading is in, or kNoButton. */
 static uint32
 button_for(lradc_device* device, uint32 voltage)
 {
-	uint32 closest = UINT32_MAX;
-	uint32 button = kNoButton;
 	for (uint32 i = 0; i < device->buttonCount; i++) {
-		uint32 difference = abs((int32)(device->buttons[i].voltage
-			- voltage));
-		if (difference < closest) {
-			closest = difference;
-			button = i;
+		if (voltage >= device->buttons[i].low
+			&& voltage < device->buttons[i].high) {
+			return i;
 		}
 	}
-	return closest <= device->tolerance ? button : kNoButton;
+	return kNoButton;
 }
 
 
@@ -204,6 +206,8 @@ set_sampling(lradc_device* device, bool sampling)
 {
 	device->sampling = sampling;
 	device->candidate = kNoButton;
+	device->candidateCount = 0;
+	device->lowestVoltage = UINT32_MAX;
 	write32(device, LRADC_INTC, INT_CHANNEL0_KEY_UP | INT_CHANNEL0_KEY_DOWN
 		| (sampling ? INT_CHANNEL0_DATA : 0));
 }
@@ -223,11 +227,14 @@ lradc_interrupt(void* data)
 	// A release first: it can share an interrupt with the next press
 	if ((status & INT_CHANNEL0_KEY_UP) != 0) {
 		if (device->sampling) {
-			// released before two samples agreed
-			if (device->candidate != kNoButton)
-				press(device, device->candidate, device->candidateVoltage);
-			else
-				INFO("short press not matched to a key\n");
+			// released before the key was decided: the lowest sample
+			uint32 button = button_for(device, device->lowestVoltage);
+			if (button != kNoButton)
+				press(device, button, device->lowestVoltage);
+			else {
+				INFO("short press at %" B_PRIu32 " mV not matched to a key\n",
+					device->lowestVoltage / 1000);
+			}
 			set_sampling(device, false);
 		}
 		if (device->pressedKey != 0) {
@@ -236,20 +243,29 @@ lradc_interrupt(void* data)
 		}
 	}
 
+	bool sample = false;
 	if ((status & INT_CHANNEL0_KEY_DOWN) != 0 && device->pressedKey == 0
 		&& !device->sampling) {
 		set_sampling(device, true);
-		device->candidateVoltage = read_voltage(device);
-		device->candidate = button_for(device, device->candidateVoltage);
-	} else if ((status & INT_CHANNEL0_DATA) != 0 && device->sampling) {
+		sample = true;
+	} else if ((status & INT_CHANNEL0_DATA) != 0 && device->sampling)
+		sample = true;
+
+	if (sample) {
 		uint32 voltage = read_voltage(device);
+		if (voltage < device->lowestVoltage)
+			device->lowestVoltage = voltage;
 		uint32 button = button_for(device, voltage);
-		if (button != kNoButton && button == device->candidate) {
+		if (button != kNoButton && button == device->candidate)
+			device->candidateCount++;
+		else {
+			device->candidate = button;
+			device->candidateCount = button != kNoButton ? 1 : 0;
+		}
+		uint32 needed = button == device->lowestButton ? 2 : kSettleSamples;
+		if (button != kNoButton && device->candidateCount >= needed) {
 			press(device, button, voltage);
 			set_sampling(device, false);
-		} else {
-			device->candidate = button;
-			device->candidateVoltage = voltage;
 		}
 	}
 
@@ -493,15 +509,32 @@ read_buttons(lradc_device* device, device_node* controller)
 	if (child != NULL)
 		sDeviceManager->put_node(child);
 
-	// Half the smallest gap between two buttons, so that a reading belongs to
-	// one button at most
+	// Each button owns the range up to halfway to its neighbours; the lowest
+	// and the highest as far on their other side
 	for (uint32 i = 0; i < device->buttonCount; i++) {
-		for (uint32 j = i + 1; j < device->buttonCount; j++) {
-			uint32 gap = abs((int32)(device->buttons[i].voltage
-				- device->buttons[j].voltage));
-			if (gap / 2 < device->tolerance)
-				device->tolerance = gap / 2;
+		lradc_button& button = device->buttons[i];
+		uint32 below = 0, above = UINT32_MAX;
+		for (uint32 j = 0; j < device->buttonCount; j++) {
+			uint32 other = device->buttons[j].voltage;
+			if (other < button.voltage && other > below)
+				below = other;
+			if (other > button.voltage && other < above)
+				above = other;
 		}
+		uint32 halfGap = button.voltage / 2;
+		if (below != 0)
+			halfGap = (button.voltage - below) / 2;
+		else if (above != UINT32_MAX)
+			halfGap = (above - button.voltage) / 2;
+		button.low = below != 0 ? (below + button.voltage) / 2
+			: button.voltage - halfGap;
+		button.high = above != UINT32_MAX ? (button.voltage + above) / 2
+			: button.voltage + halfGap;
+		if (device->lowestButton == kNoButton
+			|| button.voltage < device->buttons[device->lowestButton].voltage)
+			device->lowestButton = i;
+		INFO("key %#" B_PRIx32 ": %" B_PRIu32 " to %" B_PRIu32 " mV\n",
+			button.keycode, button.low / 1000, button.high / 1000);
 	}
 }
 
@@ -517,11 +550,12 @@ lradc_init_driver(device_node* node, void** _cookie)
 	device->registers = NULL;
 	device->interruptInstalled = false;
 	device->buttonCount = 0;
-	device->tolerance = kMaxTolerance;
+	device->lowestButton = kNoButton;
 	device->pressedKey = 0;
 	device->sampling = false;
 	device->candidate = kNoButton;
-	device->candidateVoltage = 0;
+	device->candidateCount = 0;
+	device->lowestVoltage = UINT32_MAX;
 	B_INITIALIZE_SPINLOCK(&device->queueLock);
 	device->queueStart = device->queueCount = 0;
 	device->condition.Init(device, "lradc keys");
@@ -579,9 +613,8 @@ lradc_init_driver(device_node* node, void** _cookie)
 		| CTRL_SAMPLE_RATE_250HZ | CTRL_ENABLE);
 	write32(device, LRADC_INTC, INT_CHANNEL0_KEY_UP | INT_CHANNEL0_KEY_DOWN);
 
-	INFO("%" B_PRIu32 " keys at %#" B_PRIx64 ", interrupt %" B_PRIu32
-		", tolerance %" B_PRIu32 " mV\n", device->buttonCount, base,
-		device->interrupt, device->tolerance / 1000);
+	INFO("%" B_PRIu32 " keys at %#" B_PRIx64 ", interrupt %" B_PRIu32 "\n",
+		device->buttonCount, base, device->interrupt);
 	*_cookie = device;
 	return B_OK;
 }
