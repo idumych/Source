@@ -39,6 +39,7 @@
 #include "DrawState.h"
 #include "FontManager.h"
 #include "PatternHandler.h"
+#include "RoundedDecorator.h"
 
 
 //#define DEBUG_DECORATOR
@@ -255,7 +256,9 @@ TabDecorator::_DoLayout()
 			break;
 
 		case B_BORDERED_WINDOW_LOOK:
-			fBorderWidth = 1;
+			// a rounded panel has no frame: its shadow shows its edge
+			fBorderWidth = (fTopTab->flags & B_ROUNDED_WINDOW) != 0
+				&& RoundedDecorator::IsActive(GetDesktop()) ? 0 : 1;
 			break;
 
 		default:
