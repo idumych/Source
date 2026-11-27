@@ -91,6 +91,7 @@ protected:
 
 	virtual	void				_DrawFrame(BRect rect);
 	virtual	void				_DrawOutlineFrame(BRect rect);
+			bool				_DrawPanelFrame();
 	virtual	void				_DrawTab(Decorator::Tab* tab, BRect rect);
 	virtual	void				_DrawTitle(Decorator::Tab* tab, BRect rect);
 	virtual	void				_DrawButtons(Decorator::Tab* tab,
