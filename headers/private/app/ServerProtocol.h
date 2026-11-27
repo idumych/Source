@@ -399,6 +399,9 @@ enum {
 	AS_EMULATE_SCREEN,
 	AS_STOP_SCREEN_EMULATION,
 
+	// A window's contents from its compositor buffer, scaled into a bitmap
+	AS_GET_WINDOW_PREVIEW,
+
 	AS_LAST_CODE
 };
 
