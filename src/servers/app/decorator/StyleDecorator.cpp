@@ -785,6 +785,15 @@ void
 StyleDecorator::GetRoundedShape(std::vector<Decorator::ShapeRect>& shape) const
 {
 	GetShape(shape);
+
+	// A bordered panel that asks for it is rounded as with other decorators,
+	// whatever the style does with bordered windows.
+	if (fTopTab->look == B_BORDERED_WINDOW_LOOK
+		&& (fTopTab->flags & B_ROUNDED_WINDOW) != 0) {
+		RoundedDecorator::RoundShape(shape, fTopTab->look, fTopTab->flags,
+			const_cast<StyleDecorator*>(this)->GetDesktop(), 0, 0);
+		return;
+	}
 	if (!_HasStyle() || !_StyleHas(offsetof(decor_style, rounded_shape)
 			+ sizeof(fStyle->rounded_shape))
 		|| fStyle->rounded_shape == NULL) {

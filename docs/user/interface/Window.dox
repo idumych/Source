@@ -485,7 +485,10 @@
 	Windows of other looks are rounded or not as before.
 
 	Without a compositor, or with rounded corners turned off, the flag has no
-	effect. Decorators that don't round windows ignore it.
+	effect. Decorators that don't round windows ignore it. With a
+	decorator style, the corners are cut whatever the style does with
+	bordered windows, and the style draws the border along the straight
+	edges.
 
 	\note This flag is a RenkuOS extension: it did not exist in BeOS R5 or
 	Haiku.
