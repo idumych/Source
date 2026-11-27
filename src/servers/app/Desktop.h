@@ -248,6 +248,7 @@ public:
 			void				SetViewUnderMouse(const Window* window,
 									int32 viewToken);
 			int32				ViewUnderMouse(const Window* window);
+			void				UpdateButtonHover();
 
 			EventTarget*		KeyboardEventTarget();
 
@@ -328,6 +329,8 @@ private:
 			bool				_CheckSendFakeMouseMoved(
 									const Window* lastWindowUnderMouse);
 			void				_SendFakeMouseMoved(Window* window = NULL);
+			void				_SetButtonHover(Window* window, int32 tab,
+									int32 button);
 
 			Screen*				_DetermineScreenFor(BRect frame);
 			void				_RebuildClippingForAllWindows(
@@ -393,6 +396,8 @@ private:
 
 			Window*				fMouseEventWindow;
 			const Window*		fWindowUnderMouse;
+			Window*				fHoverWindow;
+				// whose decorator has a button lit up under the mouse
 			const Window*		fLockedFocusWindow;
 			int32				fViewUnderMouse;
 			BPoint				fLastMousePosition;

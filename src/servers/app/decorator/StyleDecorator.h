@@ -67,11 +67,22 @@ public:
 									std::vector<Decorator::ShapeRect>& shape)
 										const;
 
+			// Whether the frame is glass: the style asked for it, and the
+			// desktop is composited.
+			bool				HasGlassFrame() const;
+
+			// Which button the mouse is over: a DECOR_BUTTON_* of \a tab,
+			// or -1 for none. Adds what needs drawing again to \a dirty.
+			void				SetHoveredButton(int32 tab, int32 button,
+									BRegion* dirty);
+
 protected:
 	struct Tab : public Decorator::Tab {
 								Tab();
 
 		void*					cookie;
+		int32					hoveredButton;
+			// DECOR_BUTTON_*, or -1
 	};
 
 	virtual	Decorator::Tab*		_AllocateNewTab();
@@ -123,6 +134,9 @@ private:
 									bool direct, BRect rect);
 			bool				_HasStyle() const;
 			bool				_StyleHas(size_t end) const;
+			void				_ClearGlass(BRect rect);
+	static	BRect				_ButtonRect(Decorator::Tab* tab,
+									int32 button);
 
 			const decor_style*	fStyle;
 	mutable	decor_window		fWindow;

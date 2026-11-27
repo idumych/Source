@@ -167,6 +167,11 @@ public:
 									{ return fGlassBorderRegion; }
 			const BRegion&		GlassContentRegion() const
 									{ return fGlassContentRegion; }
+			// Whether the border is glass because its decorator style asked
+			// for it: its pixels then say by their alpha how much of what is
+			// behind shows through, whatever the glass setting is.
+			bool				HasGlassFrame() const
+									{ return fGlassFrame; }
 			// The part of the window that is transparent, its content area.
 			const BRegion&		TransparentRegion() const
 									{ return fTransparentRegion; }
@@ -543,6 +548,7 @@ private:
 			uint32				fUpdateFrame;
 			BRegion				fGlassBorderRegion;
 			BRegion				fGlassContentRegion;
+			bool				fGlassFrame;
 };
 
 

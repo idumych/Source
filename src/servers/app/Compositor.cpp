@@ -91,7 +91,8 @@ struct Compositor::Wobble {
 	int32				bufferTop;
 	int32				bufferWidth;
 	int32				bufferHeight;
-	// The contents of a transparent window, or an invalid rect
+	// The contents of a transparent window, all of a window with a glass
+	// frame, or an invalid rect
 	clipping_rect		transparent;
 };
 
@@ -544,6 +545,8 @@ Compositor::_Composite(const BRegion& damage, const BRegion& moved,
 			BRegion opaque(shape.OpaqueRegion());
 			if (window->IsTransparent())
 				opaque.Exclude(&window->TransparentRegion());
+			if (window->HasGlassFrame())
+				opaque.Exclude(&window->GlassBorderRegion());
 			opaque.Exclude(&layer->tinted);
 			opaque.Exclude(&glassReach);
 			remaining.Exclude(&opaque);
@@ -571,6 +574,12 @@ Compositor::_Composite(const BRegion& damage, const BRegion& moved,
 			layer->clear = layer->region;
 			layer->clear.IntersectWith(&window->TransparentRegion());
 			layer->opaque.Exclude(&layer->clear);
+		}
+		if (window->HasGlassFrame()) {
+			BRegion border(layer->region);
+			border.IntersectWith(&window->GlassBorderRegion());
+			layer->clear.Include(&border);
+			layer->opaque.Exclude(&border);
 		}
 		if (shape.EdgeRegion().CountRects() > 0) {
 			layer->opaque.Exclude(&shape.EdgeRegion());
@@ -760,7 +769,7 @@ Compositor::_DrawBand(const BRect& band, std::vector<uint8>& shadowColumns)
 		part.IntersectWith(&layer->edge);
 		if (part.CountRects() > 0) {
 			_BlendEdges(target, window, part,
-				layer->tinted.CountRects() > 0
+				layer->tinted.CountRects() > 0 && !window->HasGlassFrame()
 					? layer->tintAlpha : layer->alpha);
 		}
 
@@ -902,7 +911,8 @@ Compositor::_GetGlass(Window* window, BRegion& glass, BRegion& tinted) const
 	// What the setting turns to glass is laid over the blur, which it would
 	// hide when fully opaque.
 	if (fGlass != 0 && fGlassOpacity < 100) {
-		tinted = window->GlassBorderRegion();
+		if (!window->HasGlassFrame())
+			tinted = window->GlassBorderRegion();
 		if (fGlass == 2 && !window->IsTransparent())
 			tinted.Include(&window->GlassContentRegion());
 	}
@@ -916,6 +926,10 @@ Compositor::_GetGlass(Window* window, BRegion& glass, BRegion& tinted) const
 	// without a border, whatever the setting is.
 	if (window->IsGlass())
 		glass.Include(&window->TransparentRegion());
+
+	// So is a border whose decorator style asked for glass.
+	if (window->HasGlassFrame())
+		glass.Include(&window->GlassBorderRegion());
 }
 
 
@@ -988,7 +1002,7 @@ Compositor::_GetGlassDamage(const BRegion& damage, BRegion& changed,
 		if (wobble != NULL && wobble->ready && !wobble->flat)
 			continue;
 
-		if (window->IsGlass())
+		if (window->IsGlass() || window->HasGlassFrame())
 			anyGlass = true;
 
 		fGlassWindows.push_back(GlassWindow());
@@ -1039,6 +1053,8 @@ Compositor::_GetGlassDamage(const BRegion& damage, BRegion& changed,
 			BRegion opaque(window->Shape().OpaqueRegion());
 			if (window->IsTransparent())
 				opaque.Exclude(&window->TransparentRegion());
+			if (window->HasGlassFrame())
+				opaque.Exclude(&window->GlassBorderRegion());
 			opaque.Exclude(&entry.tinted);
 			hidden.Include(&opaque);
 		}
@@ -1384,6 +1400,9 @@ Compositor::_BlendEdges(RenderingBuffer* target, Window* window,
 	uint8* bits = (uint8*)target->Bits();
 	uint32 bytesPerRow = target->BytesPerRow();
 
+	// A glass frame says by the alpha of its pixels how much they cover.
+	const bool pixelAlpha = window->HasGlassFrame();
+
 	const std::vector<WindowShape::Corner>& corners = window->Shape().Corners();
 	for (size_t c = 0; c < corners.size(); c++) {
 		const WindowShape::Corner& corner = corners[c];
@@ -1415,6 +1434,8 @@ Compositor::_BlendEdges(RenderingBuffer* target, Window* window,
 
 					uint32 cover = coverage[row * corner.radius + column]
 						* alpha / 255;
+					if (pixelAlpha)
+						cover = cover * src[3] / 255;
 					uint32 inverse = 255 - cover;
 					dst[0] = (src[0] * cover + dst[0] * inverse + 127) / 255;
 					dst[1] = (src[1] * cover + dst[1] * inverse + 127) / 255;
@@ -2017,7 +2038,11 @@ Compositor::_InitWobbleMasks(Wobble* wobble)
 	wobble->transparent.top = 0;
 	wobble->transparent.right = -1;
 	wobble->transparent.bottom = -1;
-	if (window->IsTransparent()) {
+	if (window->HasGlassFrame()) {
+		// All of it says by its alpha how much it covers.
+		wobble->transparent.right = width - 1;
+		wobble->transparent.bottom = height - 1;
+	} else if (window->IsTransparent()) {
 		BRect contents = window->TransparentRegion().Frame();
 		if (contents.IsValid()) {
 			wobble->transparent.left = (int32)contents.left - left;
