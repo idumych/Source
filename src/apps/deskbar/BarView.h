@@ -40,6 +40,7 @@ All rights reserved.
 #include <View.h>
 
 #include "NavMenu.h"
+#include "Look.h"
 #include "ObjectList.h"
 
 
@@ -169,6 +170,9 @@ public:
 
 			float			TeamMenuItemHeight() const;
 			float			TabHeight() const { return fTabHeight; };
+			bool			LeafBesideTray() const;
+			float			LeafWidth() const;
+			float			MinimumWidth() const;
 
 private:
 	friend class TBarApp;
@@ -183,6 +187,11 @@ private:
 			void			PlaceApplicationBar();
 
 			void			_ChangeState(BMessage* message);
+			void			_ApplyLook(BView* view);
+			float			_PillWidth() const;
+			void			_LayoutPill();
+			void			_ApplyLook(BView* view, rgb_color previous,
+								bool replicant);
 
 			TBarApp*			fBarApp;
 			TBarWindow*			fBarWindow;

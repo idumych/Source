@@ -35,10 +35,13 @@ All rights reserved.
 
 
 #include "TimeView.h"
+#include "Look.h"
 
 #include <algorithm>
 
 #include <string.h>
+
+#include <String.h>
 
 #include <Application.h>
 #include <Catalog.h>
@@ -66,6 +69,9 @@ static const float kHMargin = 2.0;
 #define B_TRANSLATION_CONTEXT "TimeView"
 
 
+static float drawn_width(const BFont& font, const char* string);
+
+
 TTimeView::TTimeView(float maxWidth, float height, TBarView* barView)
 	:
 	BView(BRect(-100, -100, -90, -90), "_deskbar_tv_",
@@ -81,7 +87,9 @@ TTimeView::TTimeView(float maxWidth, float height, TBarView* barView)
 	fShowTimeZone(false),
 	fCalendarWindow(NULL),
 	fTimeFormat(NULL),
-	fDateFormat(NULL)
+	fDateFormat(NULL),
+	fDayFormat(NULL),
+	fDayStr()
 {
 	fCurrentTime = fLastTime = time(NULL);
 	fSeconds = fMinute = fHour = 0;
@@ -98,7 +106,9 @@ TTimeView::TTimeView(float maxWidth, float height, TBarView* barView)
 TTimeView::TTimeView(BMessage* data)
 	: BView(data),
 	fTimeFormat(NULL),
-	fDateFormat(NULL)
+	fDateFormat(NULL),
+	fDayFormat(NULL),
+	fDayStr()
 {
 	fCurrentTime = fLastTime = time(NULL);
 	data->FindBool("seconds", &fShowSeconds);
@@ -115,6 +125,7 @@ TTimeView::~TTimeView()
 
 	delete fTimeFormat;
 	delete fDateFormat;
+	delete fDayFormat;
 }
 
 
@@ -150,12 +161,12 @@ TTimeView::AttachedToWindow()
 {
 	fCurrentTime = time(NULL);
 
-	SetFont(be_plain_font);
+	BFont timeFont(desk_font("SemiBold"));
+	SetFont(&timeFont);
 	if (Parent()) {
 		fParent = Parent();
-		AdoptParentColors();
-	} else
-		SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
+	}
+	apply_desk_look(this);
 
 	ResizeToPreferred();
 	CalculateTextPlacement();
@@ -170,9 +181,27 @@ TTimeView::Draw(BRect /*updateRect*/)
 	SetHighColor(ViewColor());
 	SetLowColor(ViewColor());
 	FillRect(Bounds());
-	SetHighUIColor(B_MENU_ITEM_TEXT_COLOR);
+	const desk_look look = current_desk_look();
+	SetHighColor(look.text);
 
-	DrawString(fCurrentTimeStr, fTimeLocation);
+	if (_TwoLines()) {
+		// the time, and the date under it, right-aligned
+		BFont dayFont(desk_font("Regular", 0.85f));
+		font_height timeHeight, dayHeight;
+		GetFontHeight(&timeHeight);
+		dayFont.GetHeight(&dayHeight);
+		BFont timeFont;
+		GetFont(&timeFont);
+		const float width = Bounds().Width() + 1;
+		float y = ceilf(timeHeight.ascent);
+		DrawString(fCurrentTimeStr,
+			BPoint(width - drawn_width(timeFont, fCurrentTimeStr), y));
+		y += ceilf(timeHeight.descent + dayHeight.ascent);
+		SetFont(&dayFont);
+		SetHighColor(look.dim);
+		DrawString(fDayStr, BPoint(width - drawn_width(dayFont, fDayStr), y));
+	} else
+		DrawString(fCurrentTimeStr, fTimeLocation);
 
 	PopState();
 }
@@ -195,6 +224,21 @@ TTimeView::GetPreferredSize(float* width, float* height)
 	GetFontHeight(&fontHeight);
 	fHeight = fontHeight.ascent + fontHeight.descent - 2;
 		// reduce height by 2px so that clock doesn't draw on top of border
+
+	if (_TwoLines()) {
+		BFont dayFont(desk_font("Regular", 0.85f));
+		font_height dayHeight;
+		dayFont.GetHeight(&dayHeight);
+		fHeight = ceilf(fontHeight.ascent + fontHeight.descent
+			+ dayHeight.ascent + dayHeight.descent);
+		BFont timeFont;
+		GetFont(&timeFont);
+		*width = fMaxWidth = ceilf(std::max(
+			drawn_width(timeFont, fCurrentTimeStr),
+			drawn_width(dayFont, fDayStr))) - 1;
+		*height = fHeight;
+		return;
+	}
 
 	if (Vertical()) {
 		float appWidth = static_cast<TBarApp*>(be_app)->Settings()->width;
@@ -422,6 +466,25 @@ TTimeView::UpdateTimeFormat()
 
 	delete fDateFormat;
 	fDateFormat = new BDateFormat(BLocale::Default());
+
+	// the locale's medium date without its year, after the weekday:
+	// "Thu Nov 26", "Thu 26 Nov"
+	delete fDayFormat;
+	fDayFormat = new BDateFormat(BLocale::Default());
+	BString pattern;
+	if (fDayFormat->GetDateFormat(B_MEDIUM_DATE_FORMAT, pattern) == B_OK) {
+		pattern.RemoveSet("y");
+		pattern.Trim();
+		while (pattern.Length() > 0
+			&& strchr(" ,./-", pattern[pattern.Length() - 1]) != NULL) {
+			pattern.Truncate(pattern.Length() - 1);
+		}
+		while (pattern.Length() > 0 && strchr(" ,./-", pattern[0]) != NULL)
+			pattern.Remove(0, 1);
+		pattern.Prepend("EEE ");
+	} else
+		pattern = "EEE d MMM";
+	fDayFormat->SetDateFormat(B_MEDIUM_DATE_FORMAT, pattern);
 }
 
 
@@ -448,6 +511,32 @@ TTimeView::GetCurrentDate()
 		str++;
 
 	strlcpy(fCurrentDateStr, str, sizeof(fCurrentDateStr));
+
+	if (fDayFormat == NULL || fDayFormat->Format(fDayStr, sizeof(fDayStr),
+			fCurrentTime, B_MEDIUM_DATE_FORMAT) < 0) {
+		fDayStr[0] = '\0';
+	}
+}
+
+
+/*!	How wide a string draws: StringWidth() can come out short, as with the
+	narrow no-break space ICU puts before "AM".
+*/
+static float
+drawn_width(const BFont& font, const char* string)
+{
+	BRect bounds;
+	escapement_delta delta = { 0.0, 0.0 };
+	font.GetBoundingBoxesForStrings(&string, 1, B_SCREEN_METRIC, &delta,
+		&bounds);
+	return std::max(font.StringWidth(string), ceilf(bounds.right) + 1);
+}
+
+
+bool
+TTimeView::_TwoLines() const
+{
+	return fBarView != NULL && fBarView->AcrossBottom();
 }
 
 

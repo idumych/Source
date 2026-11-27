@@ -35,6 +35,12 @@ All rights reserved.
 
 
 #include "BarView.h"
+#include "Look.h"
+
+// the margins inside the bar along the bottom
+static const float kPillPadding = 8;
+// how far the bar floats off the screen's edges
+static const float kFloatGap = 8;
 
 #include <AppFileInfo.h>
 #include <Bitmap.h>
@@ -59,6 +65,7 @@ All rights reserved.
 #include "InlineScrollView.h"
 #include "ResourceSet.h"
 #include "StatusView.h"
+#include "TimeView.h"
 #include "TeamMenuItem.h"
 
 
@@ -224,7 +231,7 @@ TBarView::AttachedToWindow()
 
 	fBarWindow = dynamic_cast<TBarWindow*>(Window());
 
-	SetViewUIColor(B_MENU_BACKGROUND_COLOR);
+	apply_desk_look(this);
 	SetFont(be_plain_font);
 
 	fMouseFilter = new BarViewMessageFilter(this);
@@ -255,7 +262,8 @@ TBarView::Draw(BRect)
 {
 	BRect bounds(Bounds());
 
-	rgb_color hilite = tint_color(ViewColor(), B_DARKEN_1_TINT);
+	rgb_color hilite = current_desk_look().separator;
+
 
 	SetHighColor(hilite);
 	if (AcrossTop())
@@ -309,6 +317,12 @@ TBarView::MessageReceived(BMessage* message)
 			_ChangeState(message);
 			break;
 		}
+
+		case B_COLORS_UPDATED:
+			// light or dark may have changed with the theme
+			_ApplyLook(this);
+			BView::MessageReceived(message);
+			break;
 
 		default:
 			BView::MessageReceived(message);
@@ -458,9 +472,16 @@ TBarView::PlaceDeskbarMenu()
 	float width = 0;
 	float height = 0;
 
+	// a vertical bar is wide enough for the leaf and the tray side by side
+	if (Vertical() && fBarApp->Settings()->width < MinimumWidth())
+		fBarApp->Settings()->width = MinimumWidth();
+
 	// Calculate the size of the deskbar menu
 	BRect menuFrame(Bounds());
-	if (Vertical()) {
+	if (LeafBesideTray()) {
+		// a square button with the tray beside it
+		width = height = LeafWidth();
+	} else if (Vertical()) {
 		width = fBarApp->Settings()->width;
 		height = fTabHeight;
 	} else {
@@ -470,10 +491,10 @@ TBarView::PlaceDeskbarMenu()
 			height = std::max(fTabHeight,
 				kGutter + fReplicantTray->MaxReplicantHeight() + kGutter);
 		} else {
-			width = gMinimumWindowWidth / 2
-				+ be_control_look->ComposeSpacing(kIconPadding);
 			height = std::max(TeamMenuItemHeight(),
 				kGutter + fReplicantTray->MaxReplicantHeight() + kGutter);
+			// a square button, and a separator after it
+			width = height + be_control_look->ComposeSpacing(kIconPadding);
 		}
 	}
 	menuFrame.bottom = menuFrame.top + height;
@@ -514,6 +535,8 @@ TBarView::PlaceTray(bool vertSwap, bool leftSwap)
 	} else if (fReplicantTray->IsHidden())
 		fReplicantTray->Show();
 
+	if (fReplicantTray->Time() != NULL)
+		fReplicantTray->Time()->Update();
 	fReplicantTray->RealignReplicants();
 	fDragRegion->ResizeToPreferred();
 		// also resizes replicant tray
@@ -534,8 +557,11 @@ TBarView::PlaceTray(bool vertSwap, bool leftSwap)
 			fReplicantTray->MoveTo(0, kGutter);
 		}
 
-		statusLoc.x = 0;
-		statusLoc.y = fBarMenuBar->Frame().bottom + 1;
+		statusLoc.x = LeafWidth();
+		statusLoc.y = LeafBesideTray()
+			? std::max(0.0f, floorf((LeafWidth()
+				- fDragRegion->Bounds().Height()) / 2))
+			: fBarMenuBar->Frame().bottom + 1;
 	} else {
 		// horizontal
 		if (State() == kMiniState) {
@@ -564,8 +590,8 @@ TBarView::PlaceTray(bool vertSwap, bool leftSwap)
 
 	if (Vertical()) {
 		// move resize control into place based on width setting
-		fResizeControl->MoveTo(
-			Left() ? fBarApp->Settings()->width - gDragWidth : 0, 1);
+		fResizeControl->MoveTo(Left() ? fBarApp->Settings()->width
+			- LeafWidth() - gDragWidth : 0, 1);
 		if (fResizeControl->IsHidden())
 			fResizeControl->Show();
 	} else {
@@ -605,9 +631,13 @@ TBarView::PlaceApplicationBar()
 	BRect expandoFrame(0, 0, 0, 0);
 	if (Vertical()) {
 		// left or right
-		expandoFrame.left = fDragRegion->Frame().left;
+		expandoFrame.left = LeafBesideTray() ? 0 : fDragRegion->Frame().left;
 		expandoFrame.top = fTrayLocation != 0 ? fDragRegion->Frame().bottom + 1
 			: fBarMenuBar->Frame().bottom + 1;
+		if (LeafBesideTray()) {
+			expandoFrame.top = std::max(fDragRegion->Frame().bottom,
+				fBarMenuBar->Frame().bottom) + 1;
+		}
 		expandoFrame.right = fBarApp->Settings()->width;
 		expandoFrame.bottom = State() == kFullState ? screenFrame.bottom
 			: Frame().bottom;
@@ -657,6 +687,10 @@ TBarView::GetPreferredWindowSize(BRect screenFrame, float* width,
 				windowHeight = fDragRegion->Frame().bottom;
 			else
 				windowHeight = fBarMenuBar->Frame().bottom;
+			if (LeafBesideTray()) {
+				windowHeight = std::max(fDragRegion->Frame().bottom,
+					fBarMenuBar->Frame().bottom);
+			}
 
 			if (State() == kExpandoState && fExpandoMenuBar != NULL) {
 				// top left or right
@@ -677,7 +711,9 @@ TBarView::GetPreferredWindowSize(BRect screenFrame, float* width,
 			// horizontal top or bottom
 			windowHeight = std::max(TeamMenuItemHeight(),
 				kGutter + fReplicantTray->MaxReplicantHeight() + kGutter);
-			windowWidth = screenFrame.Width();
+			windowWidth = AcrossBottom()
+				? std::min(_PillWidth(), screenFrame.Width())
+				: screenFrame.Width();
 		}
 	}
 
@@ -694,6 +730,9 @@ TBarView::SizeWindow(BRect screenFrame)
 	GetPreferredWindowSize(screenFrame, &windowWidth, &windowHeight);
 	Window()->ResizeTo(windowWidth, windowHeight);
 	ResizeTo(windowWidth, windowHeight);
+
+	if (AcrossBottom())
+		_LayoutPill();
 }
 
 
@@ -712,6 +751,17 @@ TBarView::PositionWindow(BRect screenFrame)
 	// bottom, full
 	if (!Top())
 		moveLoc.y = screenFrame.bottom - windowHeight;
+
+	// along the bottom: a pill in the middle
+	if (AcrossBottom())
+		moveLoc.x = floorf((screenFrame.Width() - windowWidth) / 2);
+
+	// in a corner or along the bottom, the bar floats off the screen's edges
+	if (AcrossBottom() || (Vertical() && State() == kExpandoState)) {
+		if (Vertical())
+			moveLoc.x += Left() ? kFloatGap : -kFloatGap;
+		moveLoc.y += Top() && Vertical() ? kFloatGap : -kFloatGap;
+	}
 
 	Window()->MoveTo(moveLoc);
 }
@@ -772,6 +822,7 @@ TBarView::_ChangeState(BMessage* message)
 	bool leftSwap = (Left() != left);
 	bool topSwap = (Top() != top);
 	bool stateChanged = (State() != state);
+	const int32 oldIconSize = fBarApp->IconSize();
 
 	fBarApp->Settings()->vertical = vertical;
 	fBarApp->Settings()->left = left;
@@ -792,17 +843,108 @@ TBarView::_ChangeState(BMessage* message)
 		if (Vertical()) {
 			fInlineScrollView->SetOrientation(B_VERTICAL);
 			fExpandoMenuBar->SetMenuLayout(B_ITEMS_IN_COLUMN);
-			fExpandoMenuBar->StartMonitoringWindows();
 		} else {
 			fInlineScrollView->SetOrientation(B_HORIZONTAL);
 			fExpandoMenuBar->SetMenuLayout(B_ITEMS_IN_ROW);
-			fExpandoMenuBar->StopMonitoringWindows();
 		}
 	}
+
+	// icons are bigger in a corner and along the bottom
+	if (fBarApp->IconSize() != oldIconSize)
+		fBarApp->ResizeTeamIcons();
 
 	PlaceDeskbarMenu();
 	PlaceTray(vertSwap, leftSwap);
 	PlaceApplicationBar();
+}
+
+
+/*!	Gives the bar's own views the current colours. The tray's replicants are
+	other applications' views: those that took the bar's colour when they were
+	added are given the new one.
+*/
+void
+TBarView::_ApplyLook(BView* view)
+{
+	const rgb_color previous = fReplicantTray->ViewColor();
+	_ApplyLook(view, previous, false);
+}
+
+
+void
+TBarView::_ApplyLook(BView* view, rgb_color previous, bool replicant)
+{
+	if (!replicant)
+		apply_desk_look(view);
+	else {
+		const rgb_color background = current_desk_look().background;
+		if (view->ViewColor() == previous)
+			view->SetViewColor(background);
+		if (view->LowColor() == previous)
+			view->SetLowColor(background);
+	}
+	view->Invalidate();
+
+	for (int32 i = 0; BView* child = view->ChildAt(i); i++) {
+		_ApplyLook(child, previous, replicant || (view == fReplicantTray
+			&& child != fReplicantTray->Time()));
+	}
+}
+
+
+//! In a corner, the leaf button sits beside the tray, at the top.
+bool
+TBarView::LeafBesideTray() const
+{
+	return Vertical() && !MiniState() && fTrayLocation != 0;
+}
+
+
+float
+TBarView::LeafWidth() const
+{
+	return LeafBesideTray() ? TeamMenuItemHeight() + 8 : 0;
+}
+
+
+/*!	Along the bottom, the bar is as wide as its contents, in the middle.
+	The compositor rounds its corners when it rounds windows'.
+*/
+float
+TBarView::_PillWidth() const
+{
+	float items = 0;
+	if (fExpandoMenuBar != NULL) {
+		items = fExpandoMenuBar->CountItems()
+			* fExpandoMenuBar->MaxHorizontalItemWidth();
+	}
+	return kPillPadding + fBarMenuBar->Frame().Width() + 1 + items
+		+ fDragRegion->Bounds().Width() + 1 + kPillPadding;
+}
+
+
+void
+TBarView::_LayoutPill()
+{
+	const float items = Bounds().Width() + 1 - 2 * kPillPadding
+		- (fBarMenuBar->Frame().Width() + 1)
+		- (fDragRegion->Bounds().Width() + 1);
+
+	fBarMenuBar->MoveTo(kPillPadding, 0);
+	fInlineScrollView->MoveTo(fBarMenuBar->Frame().right + 1, 0);
+	fInlineScrollView->ResizeTo(std::max(0.0f, items - 1),
+		fInlineScrollView->Bounds().Height());
+	fExpandoMenuBar->ResizeTo(std::max(0.0f, items - 1),
+		fExpandoMenuBar->Bounds().Height());
+	fDragRegion->MoveTo(fInlineScrollView->Frame().right + 1, 0);
+	Invalidate();
+}
+
+
+float
+TBarView::MinimumWidth() const
+{
+	return gMinimumWindowWidth + LeafWidth();
 }
 
 
@@ -1310,12 +1452,20 @@ TBarView::TeamMenuItemHeight() const
 	labelHeight = labelHeight < kMinTeamItemHeight ? kMinTeamItemHeight
 		: ceilf(labelHeight * 1.1f);
 
-	if (fBarApp->Settings()->hideLabels && iconSize > B_MINI_ICON) {
+	if (AcrossBottom()) {
+		// roomy buttons along the bottom: 52 pixels in a 60 pixel bar
+		return iconSize + 28;
+	} else if (fBarApp->HideLabels() && iconSize > B_MINI_ICON) {
 		// height is determined based solely on icon size
 		return iconOnlyHeight;
 	} else if (!Vertical() || (Vertical() && iconSize <= large)) {
 		// horizontal or vertical with label on same row as icon:
-		// height based on icon size or font size, whichever is bigger
+		// height based on icon size or font size, whichever is bigger;
+		// a vertical bar's rows have room around the label
+		if (Vertical() && !MiniState()) {
+			labelHeight = ceilf(labelHeight * 1.8f);
+			iconOnlyHeight = iconSize + 14;
+		}
 		return std::max(iconOnlyHeight, labelHeight);
 	} else if (Vertical() && iconSize > large) {
 		// vertical with label below icon: height based on icon and label

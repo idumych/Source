@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "BarMenuTitle.h"
+#include "Look.h"
 
 #include <Bitmap.h>
 #include <ControlLook.h>
@@ -102,25 +103,38 @@ TBarMenuTitle::Draw()
 		return;
 
 	BRect frame(Frame());
-	rgb_color base = ui_color(B_MENU_BACKGROUND_COLOR);
-
 	menu->PushState();
 
 	BRect windowBounds = menu->Window()->Bounds();
 	if (frame.right > windowBounds.right)
 		frame.right = windowBounds.right;
 
-	// fill in background
+	const desk_look look = current_desk_look();
+	menu->SetHighColor(look.background);
+	menu->FillRect(frame);
+
+	// the leaf sits on a tinted, rounded button
+	TBarView* view = static_cast<TBarApp*>(be_app)->BarView();
+	if (view != NULL && (view->LeafBesideTray() || !view->Vertical())
+		&& !IsSelected()) {
+		menu->SetHighColor(look.tint);
+		// 44 pixels in a 60 pixel bar
+		const float inset = view->Vertical() ? 4 : 7;
+		menu->FillRoundRect(frame.InsetByCopy(inset, inset), 10, 10);
+	}
 	if (IsSelected()) {
 		// with ZSnake on, the open menu's snake starts here, so the button
 		// takes the selection colour, as BeOS Dano's did
 		menu_info info;
-		rgb_color selected = get_menu_info(&info) == B_OK && info.zsnake
-			? ui_color(B_MENU_SELECTED_BACKGROUND_COLOR) : base;
-		be_control_look->DrawMenuItemBackground(menu, frame, frame, selected,
-			BControlLook::B_ACTIVATED);
-	} else
-		be_control_look->DrawButtonBackground(menu, frame, frame, base);
+		if (get_menu_info(&info) == B_OK && info.zsnake) {
+			menu->SetHighColor(ui_color(B_MENU_SELECTED_BACKGROUND_COLOR));
+			menu->FillRect(frame);
+		} else {
+			TBarView* barView = static_cast<TBarApp*>(be_app)->BarView();
+			draw_desk_highlight(menu, frame,
+				barView == NULL || barView->Vertical());
+		}
+	}
 
 	menu->MovePenTo(ContentLocation());
 	DrawContent();

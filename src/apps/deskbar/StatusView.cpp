@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "StatusView.h"
+#include "Look.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -179,7 +180,7 @@ TReplicantTray::AttachedToWindow()
 {
 	BView::AttachedToWindow();
 
-	AdoptParentColors();
+	apply_desk_look(this);
 	SetDrawingMode(B_OP_COPY);
 
 	Window()->SetPulseRate(1000000);
@@ -235,8 +236,9 @@ TReplicantTray::GetPreferredSize(float* preferredWidth, float* preferredHeight)
 	float height = fMinTrayHeight;
 
 	if (fBarView->Vertical()) {
-		width = static_cast<TBarApp*>(be_app)->Settings()->width - gDragWidth - kGutter;
-		width = std::max(gMinimumTrayWidth, width);
+		width = static_cast<TBarApp*>(be_app)->Settings()->width - gDragWidth
+			- kGutter - fBarView->LeafWidth();
+		width = std::max(gMinimumTrayWidth - fBarView->LeafWidth(), width);
 
 		if (fRightBottomReplicant.IsValid())
 			height = fRightBottomReplicant.bottom;
@@ -1183,17 +1185,9 @@ TReplicantTray::LocationForReplicant(int32 index, float replicantWidth)
 		loc.y = floorf((fBarView->TabHeight() - 1 - fMaxReplicantHeight) / 2);
 	} else {
 		loc.x -= 2; // keeps everything lined up nicely
-		const int32 iconSize = static_cast<TBarApp*>(be_app)->TeamIconSize();
-		float yOffset = iconSize > B_MINI_ICON ? 3 : 2;
-			// squeeze icons in there at 16x16, reduce border by 1px
-
-		if (fBarView->Top()) {
-			// align top
-			loc.y = yOffset;
-		} else {
-			// align bottom
-			loc.y = fBarView->TeamMenuItemHeight() + 1 - fMaxReplicantHeight - yOffset;
-		}
+		// centred in the bar
+		loc.y = floorf((fBarView->TeamMenuItemHeight() + 1
+			- fMaxReplicantHeight) / 2);
 	}
 
 	// move clock vertically centered in first row next to replicants
@@ -1327,6 +1321,13 @@ TReplicantTray::RealignReplicants(int32 startIndex)
 		if (view->Frame().LeftTop() != loc)
 			view->MoveTo(loc);
 	}
+
+	// the clock on the middle of the first row of replicants
+	if (fShelf->ReplicantAt(0, &view) != NULL && view != NULL) {
+		const float middle = (view->Frame().top + view->Frame().bottom) / 2;
+		fTime->MoveTo(fTime->Frame().left,
+			floorf(middle - fTime->Bounds().Height() / 2));
+	}
 }
 
 
@@ -1384,7 +1385,7 @@ TDragRegion::AttachedToWindow()
 
 	CalculateRegions();
 
-	SetViewUIColor(B_MENU_BACKGROUND_COLOR, 1.1);
+	apply_desk_look(this);
 
 	ResizeToPreferred();
 }
@@ -1412,34 +1413,16 @@ TDragRegion::GetPreferredSize(float* width, float* height)
 void
 TDragRegion::Draw(BRect updateRect)
 {
-	rgb_color menuColor = ViewColor();
-	rgb_color hilite = tint_color(menuColor, B_DARKEN_1_TINT);
-	rgb_color ldark = tint_color(menuColor, 1.02);
-	rgb_color dark = tint_color(menuColor, B_DARKEN_2_TINT);
-
+	// one line between the tray and the applications
 	BRect frame(Bounds());
-	BeginLineArray(4);
-
-	if (fBarView->Vertical()) {
-		// vertical expando full or mini state, draw 2 lines at the top
-		AddLine(frame.LeftTop(), frame.RightTop(), dark);
-		AddLine(BPoint(frame.left, frame.top + 1),
-			BPoint(frame.right, frame.top + 1), ldark);
-		// add hilight along bottom
-		AddLine(BPoint(frame.left + 1, frame.bottom),
-			BPoint(frame.right - 1, frame.bottom), hilite);
-	} else {
-		// mini-mode or horizontal, draw hilight along top left and bottom
-		AddLine(frame.LeftTop(), frame.RightTop(), hilite);
-		AddLine(BPoint(frame.left, frame.top + 1), frame.LeftBottom(), hilite);
-		if (!fBarView->Vertical()) {
-			// only draw bottom hilight in horizontal mode
-			AddLine(BPoint(frame.left + 1, frame.bottom - 3),
-				BPoint(frame.right - 1, frame.bottom - 3), hilite);
-		}
+	SetHighColor(current_desk_look().separator);
+	if (fBarView->Vertical())
+		StrokeLine(frame.LeftBottom(), frame.RightBottom());
+	else {
+		const float inset = floorf(frame.Height() / 4);
+		StrokeLine(BPoint(frame.left, frame.top + inset),
+			BPoint(frame.left, frame.bottom - inset));
 	}
-
-	EndLineArray();
 }
 
 
@@ -1463,26 +1446,20 @@ TDragRegion::DrawDragger()
 		menuHilite = tint_color(menuColor, B_HIGHLIGHT_BACKGROUND_TINT);
 		SetHighColor(menuHilite);
 		FillRect(dragRegion.InsetByCopy(0, -1));
-	} else {
-		SetHighColor(menuColor);
-		FillRect(dragRegion.InsetByCopy(0, 1));
 	}
+		// otherwise only the dots: the tray's clock can reach under them
 
-	rgb_color vdark = tint_color(menuHilite, B_DARKEN_3_TINT);
-	rgb_color light = tint_color(menuHilite, B_LIGHTEN_2_TINT);
-
-	rgb_color dark = tint_color(menuHilite, B_DARKEN_2_TINT);
+	rgb_color vdark = current_desk_look().separator;
+	rgb_color dark = vdark;
 
 	BeginLineArray(dragRegion.IntegerHeight() + 2);
 	BPoint where;
-	where.x = floorf((dragRegion.left + dragRegion.right) / 2 + 0.5) - 1;
-	where.y = dragRegion.top + 2;
+	where.x = floorf((dragRegion.left + dragRegion.right) / 2 + 0.5);
+	where.y = dragRegion.top + 4;
 
-	while (where.y + 1 <= dragRegion.bottom - 2) {
+	while (where.y + 1 <= dragRegion.bottom - 4) {
 		AddLine(where, where, vdark);
-		AddLine(where + BPoint(1, 1), where + BPoint(1, 1), light);
-
-		where.y += 3;
+		where.y += 4;
 	}
 
 	if (fBarView != NULL && fBarView->Vertical() && fBarView->MiniState()
@@ -1797,7 +1774,7 @@ TResizeControl::AttachedToWindow()
 {
 	BView::AttachedToWindow();
 
-	SetViewUIColor(B_MENU_BACKGROUND_COLOR, 1.1);
+	apply_desk_look(this);
 }
 
 
@@ -1893,7 +1870,7 @@ TResizeControl::MouseMoved(BPoint where, uint32 code,
 		delta = whereScreen.x - Window()->Frame().right;
 		if (delta > 0 && windowWidth >= gMaximumWindowWidth)
 			; // do nothing
-		else if (delta < 0 && windowWidth <= gMinimumWindowWidth)
+		else if (delta < 0 && windowWidth <= fBarView->MinimumWidth())
 			; // do nothing
 		else
 			Window()->ResizeBy(delta, 0);
@@ -1901,7 +1878,7 @@ TResizeControl::MouseMoved(BPoint where, uint32 code,
 		delta = Window()->Frame().left - whereScreen.x;
 		if (delta > 0 && windowWidth >= gMaximumWindowWidth)
 			; // do nothing
-		else if (delta < 0 && windowWidth <= gMinimumWindowWidth)
+		else if (delta < 0 && windowWidth <= fBarView->MinimumWidth())
 			; // do nothing
 		else {
 			Window()->MoveBy(delta, 0);

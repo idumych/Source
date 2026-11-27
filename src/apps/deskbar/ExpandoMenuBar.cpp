@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "ExpandoMenuBar.h"
+#include "Look.h"
 
 #include <strings.h>
 
@@ -111,11 +112,12 @@ void
 TExpandoMenuBar::AttachedToWindow()
 {
 	BMenuBar::AttachedToWindow();
+	apply_desk_look(this);
 
 	fTeamList.MakeEmpty();
 
-	if (Vertical())
-		StartMonitoringWindows();
+	// in either orientation: it also counts each application's windows
+	StartMonitoringWindows();
 }
 
 
@@ -364,7 +366,7 @@ TExpandoMenuBar::MouseMoved(BPoint where, uint32 code, const BMessage* message)
 				fLastMousedOverItem = NULL;
 				SetToolTip((const char*)NULL);
 			} else if (item != fLastMousedOverItem) {
-				if ((static_cast<TBarApp*>(be_app)->Settings()->hideLabels
+				if ((static_cast<TBarApp*>(be_app)->HideLabels()
 						&& teamItem != NULL)
 					|| strcasecmp(item->TruncatedLabel(), item->Label()) > 0) {
 					SetToolTip(item->Label());
@@ -797,7 +799,7 @@ TExpandoMenuBar::MinHorizontalItemWidth()
 	const int32 min = be_control_look->ComposeIconSize(kMinimumIconSize)
 		.IntegerWidth() + 1;
 
-	return static_cast<TBarApp*>(be_app)->Settings()->hideLabels
+	return static_cast<TBarApp*>(be_app)->HideLabels()
 		? iconOnlyWidth
 		: (iconSize - min) + gMinimumWindowWidth
 			+ (be_plain_font->Size() - 12) * 4;
@@ -811,8 +813,12 @@ TExpandoMenuBar::MaxHorizontalItemWidth()
 	const float iconPadding = be_control_look->ComposeSpacing(kIconPadding);
 	float iconOnlyWidth = iconSize + iconPadding;
 
+	// roomy buttons along the bottom
+	if (fBarView != NULL && fBarView->AcrossBottom())
+		return iconSize + 26;
+
 	// hide labels
-	if (static_cast<TBarApp*>(be_app)->Settings()->hideLabels)
+	if (static_cast<TBarApp*>(be_app)->HideLabels())
 		return iconOnlyWidth + iconPadding; // add an extra icon padding
 
 	// set max item width to 1.25x min item width
@@ -845,11 +851,8 @@ TExpandoMenuBar::Draw(BRect updateRect)
 void
 TExpandoMenuBar::DrawBackground(BRect updateRect)
 {
-	if (Vertical())
-		return;
-
-	SetHighColor(tint_color(ui_color(B_MENU_BACKGROUND_COLOR), 1.22));
-	StrokeLine(Bounds().RightTop(), Bounds().RightBottom());
+	SetHighColor(current_desk_look().background);
+	FillRect(updateRect);
 }
 
 
@@ -1046,6 +1049,34 @@ TExpandoMenuBar::monitor_team_windows(void* arg)
 						}
 						free(tokens);
 					}
+				}
+			}
+
+			// Count each application's windows, for its badge or dots.
+			for (int32 i = 0; i < totalItems; i++) {
+				if (teamMenu->SubmenuAt(i) == NULL)
+					continue;
+
+				teamItem = static_cast<TTeamMenuItem*>(teamMenu->ItemAt(i));
+				int32 windowCount = 0;
+				int32 teamCount = teamItem->Teams()->CountItems();
+				for (int32 j = 0; j < teamCount; j++) {
+					team_id team = (addr_t)teamItem->Teams()->ItemAt(j);
+					int32 count = 0;
+					int32* tokens = get_token_list(team, &count);
+					for (int32 k = 0; k < count; k++) {
+						client_window_info* wInfo = get_window_info(tokens[k]);
+						if (wInfo == NULL)
+							continue;
+						if (TWindowMenu::WindowShouldBeListed(wInfo))
+							windowCount++;
+						free(wInfo);
+					}
+					free(tokens);
+				}
+				if (windowCount != teamItem->WindowCount()) {
+					teamItem->SetWindowCount(windowCount);
+					teamMenu->Invalidate(teamItem->Frame());
 				}
 			}
 

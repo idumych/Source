@@ -37,6 +37,8 @@ All rights reserved.
 #include "BarApp.h"
 
 #include <locale.h>
+
+#include <algorithm>
 #include <strings.h>
 
 #include <AppFileInfo.h>
@@ -97,6 +99,8 @@ main()
 TBarApp::TBarApp()
 	:
 	BServer(kDeskbarSignature, true, NULL),
+	fBarWindow(NULL),
+	fBarView(NULL),
 	fSettingsFile(NULL),
 	fClockSettingsFile(NULL),
 	fPreferencesWindow(NULL)
@@ -106,6 +110,8 @@ TBarApp::TBarApp()
 
 	fBarWindow = new TBarWindow();
 	fBarView = fBarWindow->BarView();
+	if (IconSize() != fSettings.iconSize)
+		ResizeTeamIcons();
 
 	be_roster->StartWatching(this);
 
@@ -818,8 +824,8 @@ TBarApp::FetchTeamIcon(team_id team, int32 size)
 			BBitmap* icon = barInfo->icon;
 
 			// restore icon pointer back to setting
-			if (size != fSettings.iconSize) {
-				int32 index = (fSettings.iconSize - kMinimumIconSize)
+			if (size != IconSize()) {
+				int32 index = (IconSize() - kMinimumIconSize)
 					/ kIconSizeInterval;
 				barInfo->icon = barInfo->iconCache[index];
 			}
@@ -1001,13 +1007,32 @@ int32
 TBarApp::TeamIconSize()
 {
 	static int32 iconSize = 0, composed = 0;
-	int32 saved = fSettings.iconSize;
+	int32 saved = IconSize();
 	if (iconSize != saved) {
 		composed = be_control_look->ComposeIconSize(saved).IntegerWidth() + 1;
 		iconSize = saved;
 	}
 
 	return composed;
+}
+
+
+int32
+TBarApp::IconSize()
+{
+	if (fBarView != NULL && fBarView->AcrossBottom())
+		return std::max(fSettings.iconSize, (int32)B_LARGE_ICON);
+	if (fBarView != NULL && fBarView->LeafBesideTray())
+		return std::max(fSettings.iconSize, (int32)24);
+	return fSettings.iconSize;
+}
+
+
+bool
+TBarApp::HideLabels()
+{
+	return fSettings.hideLabels
+		|| (fBarView != NULL && fBarView->AcrossBottom());
 }
 
 
@@ -1048,7 +1073,7 @@ TBarApp::_CacheTeamIcon(BarTeamInfo* barInfo)
 	if (barInfo == NULL)
 		return B_BAD_VALUE;
 
-	return _CacheTeamIcon(barInfo, fSettings.iconSize);
+	return _CacheTeamIcon(barInfo, IconSize());
 }
 
 

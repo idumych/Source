@@ -36,6 +36,9 @@ All rights reserved.
 
 #include "BarWindow.h"
 
+// B_ROUNDED_WINDOW, until Renku's headers have it
+static const uint32 kRoundedWindow = 0x20000000;
+
 #include <stdio.h>
 
 #include <Application.h>
@@ -99,6 +102,10 @@ TBarWindow::TBarWindow()
 	desk_settings* settings = fBarApp->Settings();
 	if (settings->alwaysOnTop)
 		SetFeel(B_FLOATING_ALL_WINDOW_FEEL);
+
+	// Renku's compositor rounds the bar's corners off the screen's edges,
+	// when it rounds windows; other systems ignore the flag
+	SetFlags(Flags() | kRoundedWindow);
 
 	fBarView = new TBarView(Bounds(), settings->vertical, settings->left,
 		settings->top, settings->state, settings->width);
@@ -254,8 +261,8 @@ TBarWindow::FrameResized(float width, float height)
 	if (!setToHiddenSize) {
 		// constrain within limits
 		float newWidth;
-		if (width < gMinimumWindowWidth)
-			newWidth = gMinimumWindowWidth;
+		if (width < fBarView->MinimumWidth())
+			newWidth = fBarView->MinimumWidth();
 		else if (width > gMaximumWindowWidth)
 			newWidth = gMaximumWindowWidth;
 		else
@@ -696,7 +703,7 @@ TBarWindow::SetSizeLimits()
 		if (fBarView->Vertical()) {
 			minHeight = fBarView->TabHeight() - 1;
 			maxHeight = B_SIZE_UNLIMITED;
-			minWidth = gMinimumWindowWidth;
+			minWidth = fBarView->MinimumWidth();
 			maxWidth = gMaximumWindowWidth;
 		} else {
 			// horizontal
@@ -715,6 +722,8 @@ TBarWindow::SetSizeLimits()
 					= be_control_look->ComposeSpacing(kIconPadding);
 
 				minWidth = maxWidth = screenFrame.Width();
+				if (fBarView->AcrossBottom())
+					minWidth = 0; // a pill, as wide as its contents
 				minHeight = kMenuBarHeight - 1;
 				maxHeight = max + iconPadding / 2;
 			}

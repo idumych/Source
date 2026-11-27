@@ -81,6 +81,10 @@ public:
 			void				SetIcon(BBitmap* icon);
 
 			bool				IsExpanded() const { return fExpanded; };
+
+			int32				WindowCount() const { return fWindowCount; }
+			void				SetWindowCount(int32 count)
+									{ fWindowCount = count; }
 			void				ToggleExpandState(bool resizeWindow);
 
 			BRect				ExpanderBounds() const;
@@ -121,6 +125,7 @@ private:
 
 			bool				fExpanded;
 			int32				fArrowDirection;
+			int32				fWindowCount;
 };
 
 

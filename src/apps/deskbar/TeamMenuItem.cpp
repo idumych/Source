@@ -49,10 +49,12 @@ All rights reserved.
 #include <Mime.h>
 #include <Region.h>
 #include <Roster.h>
+#include <String.h>
 #include <Resources.h>
 #include <Window.h>
 
 #include "BarApp.h"
+#include "Look.h"
 #include "BarMenuBar.h"
 #include "BarView.h"
 #include "ExpandoMenuBar.h"
@@ -209,11 +211,11 @@ TTeamMenuItem::GetContentSize(float* width, float* height)
 		const float iconSize = static_cast<TBarApp*>(be_app)->TeamIconSize();
 		const float iconPadding = be_control_look->ComposeSpacing(kIconPadding);
 		float iconOnlyWidth = iconSize + iconPadding;
-		if (static_cast<TBarApp*>(be_app)->Settings()->hideLabels)
+		if (static_cast<TBarApp*>(be_app)->HideLabels())
 			iconOnlyWidth += iconPadding; // add an extra icon padding
 
 		if (fBarView->MiniState()) {
-			if (static_cast<TBarApp*>(be_app)->Settings()->hideLabels)
+			if (static_cast<TBarApp*>(be_app)->HideLabels())
 				*width = iconOnlyWidth;
 			else
 				*width = gMinimumWindowWidth - (gDragRegionWidth + kGutter) * 2;
@@ -239,35 +241,13 @@ TTeamMenuItem::Draw()
 
 	menu->PushState();
 
-	rgb_color menuColor = ui_color(B_MENU_BACKGROUND_COLOR);
+	menu->SetHighColor(current_desk_look().background);
+	menu->FillRect(frame);
+
 	bool canHandle = !fBarView->Dragging()
 		|| fBarView->AppCanHandleTypes(Signature());
-	uint32 flags = 0;
 	if (_IsSelected() && canHandle)
-		flags |= BControlLook::B_ACTIVATED;
-
-	uint32 borders = BControlLook::B_TOP_BORDER;
-	if (fBarView->Vertical()) {
-		menu->SetHighColor(tint_color(menuColor, B_DARKEN_1_TINT));
-		borders |= BControlLook::B_LEFT_BORDER
-			| BControlLook::B_RIGHT_BORDER;
-		menu->StrokeLine(frame.LeftBottom(), frame.RightBottom());
-		frame.bottom--;
-
-		be_control_look->DrawMenuBarBackground(menu, frame, frame,
-			menuColor, flags, borders);
-	} else {
-		if (flags & BControlLook::B_ACTIVATED)
-			menu->SetHighColor(tint_color(menuColor, B_DARKEN_3_TINT));
-		else
-			menu->SetHighColor(tint_color(menuColor, 1.22));
-		borders |= BControlLook::B_BOTTOM_BORDER;
-		menu->StrokeLine(frame.LeftTop(), frame.LeftBottom());
-		frame.left++;
-
-		be_control_look->DrawButtonBackground(menu, frame, frame,
-			menuColor, flags, borders);
-	}
+		draw_desk_highlight(menu, frame, fBarView->Vertical());
 
 	menu->MovePenTo(ContentLocation());
 	DrawContent();
@@ -296,12 +276,17 @@ TTeamMenuItem::DrawContent()
 		const int32 large = be_control_look->ComposeIconSize(B_LARGE_ICON)
 			.IntegerWidth() + 1;
 
-		if (static_cast<TBarApp*>(be_app)->Settings()->hideLabels
+		if (static_cast<TBarApp*>(be_app)->HideLabels()
 			|| (fBarView->Vertical() && iconBounds.Width() > large)) {
 			// determine icon location (centered horizontally)
 			float offsetx = contentLocation.x
 				+ floorf((frame.Width() - iconBounds.Width()) / 2);
 			float offsety = contentLocation.y + sVPad + kGutter;
+			if (static_cast<TBarApp*>(be_app)->HideLabels()) {
+				// no label below: centred
+				offsety = frame.top
+					+ floorf((frame.Height() - iconBounds.Height()) / 2);
+			}
 
 			// draw icon
 			updateRect.OffsetTo(BPoint(offsetx, offsety));
@@ -333,38 +318,54 @@ TTeamMenuItem::DrawContent()
 	// the wrong lowcolor is used when the item is disabled since the
 	// text color does not change
 	menu->SetDrawingMode(B_OP_OVER);
-	menu->SetHighColor(ui_color(B_MENU_ITEM_TEXT_COLOR));
-
-	bool canHandle = !fBarView->Dragging()
-		|| fBarView->AppCanHandleTypes(Signature());
-	if (_IsSelected() && IsEnabled() && canHandle)
-		menu->SetLowColor(tint_color(ui_color(B_MENU_BACKGROUND_COLOR),
-			B_HIGHLIGHT_BACKGROUND_TINT));
-	else
-		menu->SetLowColor(ui_color(B_MENU_BACKGROUND_COLOR));
-
-	if (IsSelected())
-		menu->SetHighColor(ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR));
-	else
-		menu->SetHighColor(ui_color(B_MENU_ITEM_TEXT_COLOR));
+	const desk_look look = current_desk_look();
+	menu->SetHighColor(look.text);
+	menu->SetLowColor(_IsSelected() ? look.hover : look.background);
 
 	menu->MovePenBy(0, fLabelAscent);
 
+	const bool expander = fBarView->Vertical()
+		&& static_cast<TBarApp*>(be_app)->Settings()->superExpando
+		&& fBarView->ExpandoState();
+
 	// draw label
-	if (!static_cast<TBarApp*>(be_app)->Settings()->hideLabels) {
+	if (!static_cast<TBarApp*>(be_app)->HideLabels()) {
+		BFont labelFont(desk_font("Medium"));
+		menu->SetFont(&labelFont);
 		float labelWidth = menu->StringWidth(Label());
 		BPoint penLocation = menu->PenLocation();
 		// truncate to max width
 		float offset = penLocation.x - frame.left;
 		menu->DrawString(Label(labelWidth + offset));
+
+		// how many windows, when there's more than one
+		if (fWindowCount > 1 && fBarView->Vertical()) {
+			BFont countFont(desk_font("Regular", 0.85f));
+			menu->SetFont(&countFont);
+			BString count;
+			count << fWindowCount;
+			float right = frame.right - 12;
+			if (expander)
+				right -= kSwitchWidth + 4;
+			menu->SetHighColor(current_desk_look().dim);
+			menu->DrawString(count, BPoint(right
+				- menu->StringWidth(count), penLocation.y));
+		}
+	} else if (fBarView->AcrossBottom() && !_IsSelected()) {
+		// a dot for each window, up to three, under the icon
+		const int32 dots = std::min(fWindowCount, (int32)3);
+		const float size = 4, gap = 3;
+		float x = floorf((frame.left + frame.right
+			- (dots * size + (dots - 1) * gap)) / 2);
+		const float y = frame.bottom - 8;
+		menu->SetHighColor(current_desk_look().dim);
+		for (int32 i = 0; i < dots; i++, x += size + gap)
+			menu->FillEllipse(BRect(x, y, x + size - 1, y + size - 1));
 	}
 
 	// draw expander arrow
-	if (fBarView->Vertical()
-		&& static_cast<TBarApp*>(be_app)->Settings()->superExpando
-		&& fBarView->ExpandoState()) {
+	if (expander)
 		DrawExpanderArrow();
-	}
 }
 
 
@@ -376,10 +377,8 @@ TTeamMenuItem::DrawExpanderArrow()
 	rect.OffsetTo(BPoint(frame.right - rect.Width(),
 		ContentLocation().y + ((frame.Height() - rect.Height()) / 2)));
 
-	float colorTint = B_DARKEN_3_TINT;
-	rgb_color bgColor = ui_color(B_MENU_BACKGROUND_COLOR);
-	if (bgColor.red + bgColor.green + bgColor.blue <= 128 * 3)
-		colorTint = B_LIGHTEN_2_TINT;
+	rgb_color bgColor = current_desk_look().background;
+	float colorTint = ui_is_dark() ? B_LIGHTEN_2_TINT : B_DARKEN_3_TINT;
 
 	be_control_look->DrawArrowShape(Menu(), rect, Menu()->Frame(),
 		bgColor, fArrowDirection, 0, colorTint);
@@ -529,6 +528,7 @@ TTeamMenuItem::_Init(BList* team, BBitmap* icon, char* name, char* signature,
 
 	fExpanded = false;
 	fArrowDirection = BControlLook::B_RIGHT_ARROW;
+	fWindowCount = 0;
 }
 
 

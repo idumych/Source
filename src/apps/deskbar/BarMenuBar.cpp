@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "BarMenuBar.h"
+#include "Look.h"
 
 #include <algorithm>
 
@@ -89,20 +90,20 @@ TSeparatorItem::Draw()
 
 	BRect frame(Frame());
 	frame.right = frame.left + kSepItemWidth;
-	rgb_color base = ui_color(B_MENU_BACKGROUND_COLOR);
-
 	menu->PushState();
 
-	menu->SetHighColor(tint_color(base, 1.22));
 	frame.top--;
 		// need to expand the frame for some reason
+	const desk_look look = current_desk_look();
+	menu->SetHighColor(look.background);
+	menu->FillRect(frame);
 
-	// stroke a darker line on the left edge
-	menu->StrokeLine(frame.LeftTop(), frame.LeftBottom());
-	frame.left++;
-
-	// fill in background
-	be_control_look->DrawButtonBackground(menu, frame, frame, base);
+	// a short divider between the leaf and the applications
+	const float middle = floorf((frame.left + frame.right) / 2);
+	const float inset = floorf(frame.Height() / 4);
+	menu->SetHighColor(look.separator);
+	menu->StrokeLine(BPoint(middle, frame.top + inset),
+		BPoint(middle, frame.bottom - inset));
 
 	menu->PopState();
 }
@@ -275,7 +276,8 @@ TBarMenuBar::Draw(BRect updateRect)
 void
 TBarMenuBar::DrawBackground(BRect updateRect)
 {
-	BMenu::DrawBackground(updateRect);
+	SetHighColor(current_desk_look().background);
+	FillRect(updateRect);
 }
 
 
@@ -380,12 +382,11 @@ TBarMenuBar::_DeskbarMenuIconID() const
 {
 	// The wordmark needs the wide menu of the vertical, expanded layout.
 	// Every other layout is too narrow for it and shows the mark instead.
-	const bool wordmark = fBarView->Vertical() && !fBarView->MiniState();
+	const bool wordmark = fBarView->Vertical() && !fBarView->MiniState()
+		&& !fBarView->LeafBesideTray();
 
-	// Light text on a darker menu: the menu's brightness alone isn't enough,
-	// as there are themes with mid-grey menus and black text.
-	if (ui_color(B_MENU_ITEM_TEXT_COLOR).Brightness()
-			> ui_color(B_MENU_BACKGROUND_COLOR).Brightness()) {
+	// The bar is dark when the running theme is.
+	if (ui_is_dark()) {
 		return wordmark ? R_WordmarkLogoDarkBitmap : R_MarkLogoDarkBitmap;
 	}
 	return wordmark ? R_WordmarkLogoBitmap : R_MarkLogoBitmap;
@@ -406,7 +407,9 @@ TBarMenuBar::_UpdateDeskbarMenuIcon(float width, float height)
 	// by the bitmap's width, so the bitmap takes the logo's own shape.
 	const float aspect = wordmark ? kWordmarkLogoAspect : kMarkLogoAspect;
 	const float iconHeight
-		= floorf(std::min(height, width / aspect) * kLogoFill);
+		= floorf(std::min(height, width / aspect) * kLogoFill
+			* (wordmark ? 1.0f : 0.7f));
+			// the mark sits inside a button
 	const float iconWidth = floorf(iconHeight * aspect);
 	if (iconHeight < 1.f || iconWidth < 1.f)
 		return;

@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "WindowMenuItem.h"
+#include "Look.h"
 
 #include <Bitmap.h>
 #include <ControlLook.h>
@@ -109,41 +110,23 @@ TWindowMenuItem::Draw()
 		return;
 	}
 
-	// TODO: Tint this smartly based on the low color, this does
-	// nothing to black.
-	rgb_color menuColor = tint_color(ui_color(B_MENU_BACKGROUND_COLOR), 1.07);
+	// a window listed under its application in the bar
+	const desk_look look = current_desk_look();
 	BRect frame(Frame());
 	BMenu* menu = Menu();
 
 	menu->PushState();
 
-	// if not selected or being tracked on, fill with gray
+	menu->SetHighColor(look.background);
+	menu->FillRect(frame);
+
 	TBarView* barview = (static_cast<TBarApp*>(be_app))->BarView();
-	if ((!IsSelected() && !menu->IsRedrawAfterSticky())
-		|| barview->Dragging() || !IsEnabled()) {
-
-		rgb_color shadow = tint_color(menuColor, 1.09);
-		menu->SetHighColor(shadow);
-		frame.right = frame.left + sHPad / 2;
-		menu->FillRect(frame);
-
-		menu->SetHighColor(menuColor);
-		frame.left = frame.right + 1;
-		frame.right = Frame().right;
-		menu->FillRect(frame);
-	}
-
-	if (IsEnabled() && IsSelected() && !menu->IsRedrawAfterSticky()) {
-		// fill
-		rgb_color backColor = tint_color(menuColor,
-			B_HIGHLIGHT_BACKGROUND_TINT);
-		menu->SetLowColor(backColor);
-		menu->SetHighColor(backColor);
-		menu->FillRect(frame);
-	} else {
-		menu->SetLowColor(menuColor);
-		menu->SetHighColor(menuColor);
-	}
+	if (IsEnabled() && IsSelected() && !menu->IsRedrawAfterSticky()
+		&& !barview->Dragging()) {
+		draw_desk_highlight(menu, frame, true);
+		menu->SetLowColor(look.hover);
+	} else
+		menu->SetLowColor(look.background);
 
 	DrawContent();
 
@@ -183,7 +166,9 @@ TWindowMenuItem::DrawContent()
 	menu->SetDrawingMode(B_OP_COPY);
 	menu->MovePenTo(contentLocation);
 
-	if (IsSelected())
+	if (fExpanded)
+		menu->SetHighColor(current_desk_look().text);
+	else if (IsSelected())
 		menu->SetHighColor(ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR));
 	else
 		menu->SetHighColor(ui_color(B_MENU_ITEM_TEXT_COLOR));

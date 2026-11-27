@@ -10,6 +10,7 @@
 
 
 #include "InlineScrollView.h"
+#include "Look.h"
 
 #include <ControlLook.h>
 #include <Debug.h>
@@ -426,9 +427,8 @@ TInlineScrollView::DetachedFromWindow()
 void
 TInlineScrollView::Draw(BRect updateRect)
 {
-	BRect frame = Bounds();
-	be_control_look->DrawButtonBackground(this, frame, updateRect,
-		ui_color(B_MENU_BACKGROUND_COLOR));
+	SetHighColor(current_desk_look().background);
+	FillRect(updateRect);
 }
 
 

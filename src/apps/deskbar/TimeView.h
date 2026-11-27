@@ -96,6 +96,8 @@ public:
 				void			MouseDown(BPoint where);
 				void			Pulse();
 				void			ResizeToPreferred();
+				void			Update();
+					// one line or two, after the bar moves
 
 				bool			ShowSeconds() const;
 				void			SetShowSeconds(bool show);
@@ -117,7 +119,6 @@ private:
 				void			UpdateTimeFormat();
 				void			CalculateTextPlacement();
 				void			ShowTimeOptions(BPoint);
-				void			Update();
 
 				bool			Vertical();
 
@@ -155,6 +156,10 @@ private:
 				// For date and time localization purposes
 				BDateTimeFormat* fTimeFormat;
 				BDateFormat*	fDateFormat;
+				BDateFormat*	fDayFormat;
+				char			fDayStr[64];
+					// "Thu, Nov 26", under the time along the bottom
+				bool			_TwoLines() const;
 };
 
 
