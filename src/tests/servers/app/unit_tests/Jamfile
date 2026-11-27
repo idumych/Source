@@ -8,9 +8,12 @@ UnitTestLib app_server_unit_tests.so :
 	AppServerUnitTestAddOn.cpp
 
 	EmulatedScreenLayoutTest.cpp
+	GlassBlur.cpp
 	IntPoint.cpp
 	IntRect.cpp
 	ScreenRotationTest.cpp
+
+	GlassBlurTest.cpp
 	SimpleTransformTest.cpp
 
 	: be [ TargetLibstdc++ ]
