@@ -81,6 +81,7 @@ enum {
 	// the ones Haiku assigns from the bottom up.
 	B_TRANSPARENT_WINDOW				= 0x80000000,
 	B_GLASS_WINDOW						= 0x40000000,
+	B_ROUNDED_WINDOW					= 0x20000000,
 	B_NO_SERVER_SIDE_WINDOW_MODIFIERS	= 0x00000200
 };
 

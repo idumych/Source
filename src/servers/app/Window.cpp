@@ -2046,6 +2046,7 @@ Window::ValidWindowFlags()
 		| B_CLOSE_ON_ESCAPE
 		| B_TRANSPARENT_WINDOW
 		| B_GLASS_WINDOW
+		| B_ROUNDED_WINDOW
 		| B_NO_SERVER_SIDE_WINDOW_MODIFIERS
 		| kWindowScreenFlag
 		| kAcceptKeyboardFocusFlag;

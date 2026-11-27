@@ -499,6 +499,29 @@
 
 
 /*!
+	\var B_ROUNDED_WINDOW
+
+	Round the corners of a window with \c B_BORDERED_WINDOW_LOOK, for a
+	panel such as the Deskbar.
+
+	On a composited desktop with rounded corners turned on, the compositor
+	rounds the window's corners, more than those of a titled window, and its
+	border follows them. A corner that
+	lies on the edge of the screen stays square, so that a panel along an
+	edge, such as the Deskbar, is rounded only where it meets the desktop.
+	Windows of other looks are rounded or not as before.
+
+	Without a compositor, or with rounded corners turned off, the flag has no
+	effect. Decorators that don't round windows ignore it.
+
+	\note This flag is a RenkuOS extension: it did not exist in BeOS R5 or
+	Haiku.
+
+	\since Renku
+*/
+
+
+/*!
 	\var B_NO_SERVER_SIDE_WINDOW_MODIFIERS
 
 	\since Haiku R1
@@ -721,6 +744,8 @@
 	            drawn, on a composited desktop.
 	       - \c B_GLASS_WINDOW Show what is behind blurred, like glass,
 	            where the window isn't opaque.
+	       - \c B_ROUNDED_WINDOW Round the corners of a bordered window, on
+	            a composited desktop.
 	       - \c B_NO_SERVER_SIDE_WINDOW_MODIFIERS ??
 	\param workspace Mask that indicates which of the 32 potential workspace(s)
 	       the window should be displayed in or \c B_CURRENT_WORKSPACE or
