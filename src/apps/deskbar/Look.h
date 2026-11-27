@@ -14,9 +14,9 @@
 class BView;
 
 
-/*!	PowerDesk's own colours for the bar: light or dark after the running
-	theme (ui_is_dark()), with the theme's highlight colour as the accent.
-	Menus that open from the bar keep the theme's look.
+/*!	The bar's colours, from the running theme's menu colours, with the
+	theme's highlight colour as the accent; ui_is_dark() decides which way
+	its shades go. Menus that open from the bar keep the theme's look.
 */
 struct desk_look {
 	rgb_color	background;

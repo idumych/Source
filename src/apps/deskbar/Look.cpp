@@ -24,24 +24,19 @@ mix(rgb_color a, rgb_color b, float amount)
 desk_look
 current_desk_look()
 {
+	// the theme's own colors: the bar is a menu bar, as the Deskbar's is
 	desk_look look;
+	look.background = ui_color(B_MENU_BACKGROUND_COLOR);
+	look.text = ui_color(B_MENU_ITEM_TEXT_COLOR);
 	look.accent = ui_color(B_CONTROL_HIGHLIGHT_COLOR);
+	look.dim = mix(look.text, look.background, 0.35f);
 
-	if (ui_is_dark()) {
-		look.background = make_color(30, 35, 46);
-		look.text = make_color(238, 241, 245);
-		look.dim = make_color(169, 177, 191);
-		look.separator = make_color(54, 59, 69);
-		look.hover = mix(look.background, look.accent, 0.3f);
-		look.tint = mix(look.background, make_color(255, 255, 255), 0.08f);
-	} else {
-		look.background = make_color(246, 247, 249);
-		look.text = make_color(31, 36, 48);
-		look.dim = make_color(91, 98, 112);
-		look.separator = make_color(220, 224, 229);
-		look.hover = mix(look.background, look.accent, 0.18f);
-		look.tint = mix(look.background, look.accent, 0.1f);
-	}
+	// shades of the background, lighter on a dark theme
+	const rgb_color shade = ui_is_dark()
+		? make_color(255, 255, 255) : make_color(0, 0, 0);
+	look.separator = mix(look.background, shade, 0.12f);
+	look.tint = mix(look.background, look.accent, 0.12f);
+	look.hover = mix(look.background, look.accent, ui_is_dark() ? 0.3f : 0.2f);
 	return look;
 }
 
