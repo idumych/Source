@@ -332,6 +332,38 @@ StyleDecorator::_DrawFrame(BRect rect)
 	if (!_HasStyle() || !rect.IsValid())
 		return;
 
+	// A rounded panel's frame is a line round it, drawn here rather than by
+	// the style, so that it follows the corners the compositor cuts.
+	if (fTopTab->look == B_BORDERED_WINDOW_LOOK
+		&& (fTopTab->flags & B_ROUNDED_WINDOW) != 0 && fBorderWidth > 0) {
+		const rgb_color color = tint_color(fTopTab->isFocused
+			? fFocusFrameColor : fNonFocusFrameColor, B_DARKEN_3_TINT);
+		const BRect border(fTopBorder.LeftTop(), fBottomBorder.RightBottom());
+		if (!RoundedDecorator::IsActive(GetDesktop())) {
+			fDrawingEngine->StrokeRect(border, color);
+			return;
+		}
+
+		std::vector<ShapeRect> shape;
+		GetRoundedShape(shape);
+		const ShapeRect& frame = shape[0];
+		fDrawingEngine->StrokeLine(BPoint(border.left + frame.leftTop,
+			border.top), BPoint(border.right - frame.rightTop, border.top),
+			color);
+		fDrawingEngine->StrokeLine(BPoint(border.left + frame.leftBottom,
+			border.bottom), BPoint(border.right - frame.rightBottom,
+			border.bottom), color);
+		fDrawingEngine->StrokeLine(BPoint(border.left,
+			border.top + frame.leftTop), BPoint(border.left,
+			border.bottom - frame.leftBottom), color);
+		fDrawingEngine->StrokeLine(BPoint(border.right,
+			border.top + frame.rightTop), BPoint(border.right,
+			border.bottom - frame.rightBottom), color);
+		RoundedDecorator::StrokeCorners(fDrawingEngine, frame, color, color,
+			color, color);
+		return;
+	}
+
 	_SyncIn();
 	fStyle->draw_frame(&fWindow, fCanvas, to_decor_rect(rect));
 }
