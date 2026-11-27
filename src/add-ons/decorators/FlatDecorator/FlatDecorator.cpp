@@ -559,10 +559,6 @@ FlatDecorator::_DrawFrameCorners()
 	// The frame around a floating window is thinner, and colored differently.
 	const bool thin = fTopTab->look == B_FLOATING_WINDOW_LOOK
 		|| fTopTab->look == kLeftTitledWindowLook;
-	if (fTopTab->look == B_BORDERED_WINDOW_LOOK) {
-		// one colour all round, as _DrawFrame() draws it
-		top[0] = bottom[0] = bottom[5] = left[0] = left[5];
-	}
 
 	const int32 leftTop = (int32)frame.leftTop;
 	const int32 rightTop = (int32)frame.rightTop;

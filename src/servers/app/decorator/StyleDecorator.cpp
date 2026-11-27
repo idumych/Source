@@ -164,7 +164,7 @@ StyleDecorator::~StyleDecorator()
 void
 StyleDecorator::Draw(BRect updateRect)
 {
-	if (!_HasStyle() || fTabList.CountItems() == 0)
+	if (!_HasStyle() || fTabList.CountItems() == 0 || _IsRoundedPanel())
 		return;
 
 	if (_StyleHas(offsetof(decor_style, draw) + sizeof(fStyle->draw))
@@ -172,7 +172,6 @@ StyleDecorator::Draw(BRect updateRect)
 		fDrawingEngine->SetDrawState(&fDrawState);
 		_SyncIn();
 		fStyle->draw(&fWindow, fCanvas, to_decor_rect(updateRect));
-		_DrawPanelFrame();
 		return;
 	}
 
@@ -329,51 +328,19 @@ StyleDecorator::_DrawFrame(BRect rect)
 	if (!_HasStyle() || !rect.IsValid())
 		return;
 
-	if (_DrawPanelFrame())
-		return;
-
 	_SyncIn();
 	fStyle->draw_frame(&fWindow, fCanvas, to_decor_rect(rect));
 }
 
 
-/*!	A rounded panel's frame (B_ROUNDED_WINDOW) is a line round it, drawn
-	here rather than by the style, so that it follows the corners the
-	compositor cuts. Returns whether the window is such a panel.
-*/
+//!	A rounded panel (B_ROUNDED_WINDOW) has no frame: its shadow shows its edge.
 bool
-StyleDecorator::_DrawPanelFrame()
+StyleDecorator::_IsRoundedPanel() const
 {
-	if (fTopTab->look != B_BORDERED_WINDOW_LOOK
-		|| (fTopTab->flags & B_ROUNDED_WINDOW) == 0 || fBorderWidth <= 0)
-		return false;
-
-	const rgb_color color = tint_color(fTopTab->isFocused
-		? fFocusFrameColor : fNonFocusFrameColor, B_DARKEN_3_TINT);
-	const BRect border(fTopBorder.LeftTop(), fBottomBorder.RightBottom());
-	if (!RoundedDecorator::IsActive(GetDesktop())) {
-		fDrawingEngine->StrokeRect(border, color);
-		return true;
-	}
-
-	std::vector<ShapeRect> shape;
-	GetRoundedShape(shape);
-	const ShapeRect& frame = shape[0];
-	fDrawingEngine->StrokeLine(BPoint(border.left + frame.leftTop,
-		border.top), BPoint(border.right - frame.rightTop, border.top),
-		color);
-	fDrawingEngine->StrokeLine(BPoint(border.left + frame.leftBottom,
-		border.bottom), BPoint(border.right - frame.rightBottom,
-		border.bottom), color);
-	fDrawingEngine->StrokeLine(BPoint(border.left,
-		border.top + frame.leftTop), BPoint(border.left,
-		border.bottom - frame.leftBottom), color);
-	fDrawingEngine->StrokeLine(BPoint(border.right,
-		border.top + frame.rightTop), BPoint(border.right,
-		border.bottom - frame.rightBottom), color);
-	RoundedDecorator::StrokeCorners(fDrawingEngine, frame, color, color,
-		color, color);
-	return true;
+	return fTopTab != NULL && fTopTab->look == B_BORDERED_WINDOW_LOOK
+		&& (fTopTab->flags & B_ROUNDED_WINDOW) != 0
+		&& RoundedDecorator::IsActive(
+			const_cast<StyleDecorator*>(this)->GetDesktop());
 }
 
 
@@ -633,7 +600,7 @@ void
 StyleDecorator::_GetFootprint(BRegion* region)
 {
 	if (region == NULL || fTopTab == NULL
-		|| fTopTab->look == B_NO_BORDER_WINDOW_LOOK)
+		|| fTopTab->look == B_NO_BORDER_WINDOW_LOOK || _IsRoundedPanel())
 		return;
 
 	if (_HasStyle() && _StyleHas(offsetof(decor_style, footprint)
@@ -744,6 +711,10 @@ StyleDecorator::_SyncOut()
 	fTopBorder = to_rect(fWindow.top_border);
 	fRightBorder = to_rect(fWindow.right_border);
 	fBottomBorder = to_rect(fWindow.bottom_border);
+	if (_IsRoundedPanel()) {
+		fBorderWidth = 0;
+		fLeftBorder = fTopBorder = fRightBorder = fBottomBorder = BRect();
+	}
 	// Round all the borders the style has: a title bar can take the top
 	// border's place, and the sides can run past the top and the bottom.
 	// The compositor casts the window's shadow from this.
