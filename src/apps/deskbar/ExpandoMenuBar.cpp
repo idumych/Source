@@ -813,9 +813,11 @@ TExpandoMenuBar::MaxHorizontalItemWidth()
 	const float iconPadding = be_control_look->ComposeSpacing(kIconPadding);
 	float iconOnlyWidth = iconSize + iconPadding;
 
-	// roomy buttons along the bottom
-	if (fBarView != NULL && fBarView->AcrossBottom())
+	// roomy buttons along the bottom, when they're icons only
+	if (fBarView != NULL && fBarView->AcrossBottom()
+		&& static_cast<TBarApp*>(be_app)->HideLabels()) {
 		return iconSize + 26;
+	}
 
 	// hide labels
 	if (static_cast<TBarApp*>(be_app)->HideLabels())

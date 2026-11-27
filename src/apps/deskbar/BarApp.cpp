@@ -37,8 +37,6 @@ All rights reserved.
 #include "BarApp.h"
 
 #include <locale.h>
-
-#include <algorithm>
 #include <strings.h>
 
 #include <AppFileInfo.h>
@@ -110,8 +108,6 @@ TBarApp::TBarApp()
 
 	fBarWindow = new TBarWindow();
 	fBarView = fBarWindow->BarView();
-	if (IconSize() != fSettings.iconSize)
-		ResizeTeamIcons();
 
 	be_roster->StartWatching(this);
 
@@ -218,6 +214,7 @@ TBarApp::SaveSettings()
 		prefs.AddBool("superExpando", fSettings.superExpando);
 		prefs.AddBool("expandNewTeams", fSettings.expandNewTeams);
 		prefs.AddBool("hideLabels", fSettings.hideLabels);
+		prefs.AddBool("hideLabelsBottom", fSettings.hideLabelsBottom);
 		prefs.AddInt32("iconSize", fSettings.iconSize);
 		// recent items
 		prefs.AddBool("recentDocsEnabled", fSettings.recentDocsEnabled);
@@ -284,7 +281,8 @@ TBarApp::InitSettings()
 	settings.superExpando = fDefaultSettings.superExpando = false;
 	settings.expandNewTeams = fDefaultSettings.expandNewTeams = false;
 	settings.hideLabels = fDefaultSettings.hideLabels = false;
-	settings.iconSize = fDefaultSettings.iconSize = kMinimumIconSize;
+	settings.hideLabelsBottom = fDefaultSettings.hideLabelsBottom = true;
+	settings.iconSize = fDefaultSettings.iconSize = B_LARGE_ICON;
 	// recent items
 	settings.recentDocsEnabled = fDefaultSettings.recentDocsEnabled = true;
 	settings.recentFoldersEnabled
@@ -348,6 +346,8 @@ TBarApp::InitSettings()
 				fDefaultSettings.expandNewTeams);
 			settings.hideLabels = prefs.GetBool("hideLabels",
 				fDefaultSettings.hideLabels);
+			settings.hideLabelsBottom = prefs.GetBool("hideLabelsBottom",
+				fDefaultSettings.hideLabelsBottom);
 			settings.iconSize = prefs.GetInt32("iconSize",
 				fDefaultSettings.iconSize);
 			// recent items
@@ -635,7 +635,11 @@ TBarApp::MessageReceived(BMessage* message)
 			break;
 
 		case kHideLabels:
-			fSettings.hideLabels = !fSettings.hideLabels;
+			// the setting of where the bar is
+			if (fBarView->AcrossBottom())
+				fSettings.hideLabelsBottom = !fSettings.hideLabelsBottom;
+			else
+				fSettings.hideLabels = !fSettings.hideLabels;
 
 			if (fPreferencesWindow != NULL)
 				fPreferencesWindow->PostMessage(kUpdatePreferences);
@@ -825,8 +829,8 @@ TBarApp::FetchTeamIcon(team_id team, int32 size)
 			BBitmap* icon = barInfo->icon;
 
 			// restore icon pointer back to setting
-			if (size != IconSize()) {
-				int32 index = (IconSize() - kMinimumIconSize)
+			if (size != fSettings.iconSize) {
+				int32 index = (fSettings.iconSize - kMinimumIconSize)
 					/ kIconSizeInterval;
 				barInfo->icon = barInfo->iconCache[index];
 			}
@@ -1008,7 +1012,7 @@ int32
 TBarApp::TeamIconSize()
 {
 	static int32 iconSize = 0, composed = 0;
-	int32 saved = IconSize();
+	int32 saved = fSettings.iconSize;
 	if (iconSize != saved) {
 		composed = be_control_look->ComposeIconSize(saved).IntegerWidth() + 1;
 		iconSize = saved;
@@ -1018,22 +1022,11 @@ TBarApp::TeamIconSize()
 }
 
 
-int32
-TBarApp::IconSize()
-{
-	if (fBarView != NULL && fBarView->AcrossBottom())
-		return std::max(fSettings.iconSize, (int32)B_LARGE_ICON);
-	if (fBarView != NULL && fBarView->LeafBesideTray())
-		return std::max(fSettings.iconSize, (int32)24);
-	return fSettings.iconSize;
-}
-
-
 bool
 TBarApp::HideLabels()
 {
-	return fSettings.hideLabels
-		|| (fBarView != NULL && fBarView->AcrossBottom());
+	return fBarView != NULL && fBarView->AcrossBottom()
+		? fSettings.hideLabelsBottom : fSettings.hideLabels;
 }
 
 
@@ -1074,7 +1067,7 @@ TBarApp::_CacheTeamIcon(BarTeamInfo* barInfo)
 	if (barInfo == NULL)
 		return B_BAD_VALUE;
 
-	return _CacheTeamIcon(barInfo, IconSize());
+	return _CacheTeamIcon(barInfo, fSettings.iconSize);
 }
 
 

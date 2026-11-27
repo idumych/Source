@@ -35,6 +35,7 @@
 #include <DeskbarPrivate.h>
 
 #include "BarApp.h"
+#include "BarView.h"
 #include "DeskbarUtils.h"
 #include "ScreenCornerSelector.h"
 #include "StatusView.h"
@@ -128,7 +129,7 @@ PreferencesWindow::PreferencesWindow(BRect frame)
 	fAppsSortTrackerFirst->SetValue(fSettings.trackerAlwaysFirst);
 	fAppsShowExpanders->SetValue(fSettings.superExpando);
 	fAppsExpandNew->SetValue(fSettings.expandNewTeams);
-	fAppsHideLabels->SetValue(fSettings.hideLabels);
+	fAppsHideLabels->SetValue(static_cast<TBarApp*>(be_app)->HideLabels());
 	fAppsIconSizeSlider->SetValue(fSettings.iconSize / kIconSizeInterval);
 
 	// Window settings
@@ -287,6 +288,9 @@ PreferencesWindow::MessageReceived(BMessage* message)
 				&& message->FindInt32("state", &state) == B_OK) {
 				_SetWindowLocation(vertical, left, top, state);
 			}
+			// names have a setting for each place
+			fAppsHideLabels->SetValue(
+				static_cast<TBarApp*>(be_app)->HideLabels());
 			_EnableDisableDependentItems();
 			break;
 		}
@@ -374,6 +378,7 @@ PreferencesWindow::_IsDefaultable()
 		|| defaults->superExpando != settings->superExpando
 		|| defaults->expandNewTeams != settings->expandNewTeams
 		|| defaults->hideLabels != settings->hideLabels
+		|| defaults->hideLabelsBottom != settings->hideLabelsBottom
 		|| defaults->iconSize != settings->iconSize
 		|| defaults->recentAppsEnabled != settings->recentAppsEnabled
 		|| defaults->recentDocsEnabled != settings->recentDocsEnabled
@@ -398,6 +403,7 @@ PreferencesWindow::_IsRevertable()
 		|| fSettings.superExpando != settings->superExpando
 		|| fSettings.expandNewTeams != settings->expandNewTeams
 		|| fSettings.hideLabels != settings->hideLabels
+		|| fSettings.hideLabelsBottom != settings->hideLabelsBottom
 		|| fSettings.iconSize != settings->iconSize
 		|| fSettings.recentAppsEnabled != settings->recentAppsEnabled
 		|| fSettings.recentDocsEnabled != settings->recentDocsEnabled
@@ -544,9 +550,21 @@ PreferencesWindow::_UpdatePreferences(desk_settings* settings)
 		fAppsExpandNew->SetValue(settings->expandNewTeams);
 		fAppsExpandNew->Invoke();
 	}
-	if (current->hideLabels != settings->hideLabels) {
-		fAppsHideLabels->SetValue(settings->hideLabels);
-		fAppsHideLabels->Invoke();
+	{
+		// the checkbox is the setting of where the bar is; the other one is
+		// taken as it is
+		TBarView* barView = static_cast<TBarApp*>(be_app)->BarView();
+		const bool bottom = barView != NULL && barView->AcrossBottom();
+		if (bottom)
+			current->hideLabels = settings->hideLabels;
+		else
+			current->hideLabelsBottom = settings->hideLabelsBottom;
+		const bool hide = bottom
+			? settings->hideLabelsBottom : settings->hideLabels;
+		if (static_cast<TBarApp*>(be_app)->HideLabels() != hide) {
+			fAppsHideLabels->SetValue(hide);
+			fAppsHideLabels->Invoke();
+		}
 	}
 	if (current->iconSize != settings->iconSize) {
 		fAppsIconSizeSlider->SetValue(settings->iconSize / kIconSizeInterval);

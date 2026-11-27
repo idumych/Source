@@ -50,6 +50,8 @@ struct desk_settings {
 	bool superExpando;
 	bool expandNewTeams;
 	bool hideLabels;
+	bool hideLabelsBottom;
+		// along the bottom, where names are hidden at first
 	int32 iconSize;
 	// recent items
 	bool recentDocsEnabled;

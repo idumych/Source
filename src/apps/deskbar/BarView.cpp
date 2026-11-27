@@ -822,7 +822,6 @@ TBarView::_ChangeState(BMessage* message)
 	bool leftSwap = (Left() != left);
 	bool topSwap = (Top() != top);
 	bool stateChanged = (State() != state);
-	const int32 oldIconSize = fBarApp->IconSize();
 
 	fBarApp->Settings()->vertical = vertical;
 	fBarApp->Settings()->left = left;
@@ -848,10 +847,6 @@ TBarView::_ChangeState(BMessage* message)
 			fExpandoMenuBar->SetMenuLayout(B_ITEMS_IN_ROW);
 		}
 	}
-
-	// icons are bigger in a corner and along the bottom
-	if (fBarApp->IconSize() != oldIconSize)
-		fBarApp->ResizeTeamIcons();
 
 	PlaceDeskbarMenu();
 	PlaceTray(vertSwap, leftSwap);
@@ -903,7 +898,8 @@ TBarView::LeafBesideTray() const
 float
 TBarView::LeafWidth() const
 {
-	return LeafBesideTray() ? TeamMenuItemHeight() + 8 : 0;
+	// as tall as a row, but no bigger than the tray beside it has room for
+	return LeafBesideTray() ? std::min(TeamMenuItemHeight() + 8, 46.0f) : 0;
 }
 
 

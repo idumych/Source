@@ -155,11 +155,8 @@ public:
 	static	void					Unsubscribe(const BMessenger &subscriber);
 
 			int32					TeamIconSize();
-			int32					IconSize();
-			void					ResizeTeamIcons();
-				// the setting, at least 32 along the bottom
 			bool					HideLabels();
-				// the setting, or icons only along the bottom
+				// the setting of where the bar is
 
 			BBitmap*				FetchTeamIcon(team_id team, int32 size);
 			BBitmap*				FetchWindowIcon(bool local = true,
@@ -176,6 +173,7 @@ private:
 			void					ShowPreferencesWindow();
 			void					QuitPreferencesWindow();
 
+			void					ResizeTeamIcons();
 			status_t				_CacheTeamIcon(BarTeamInfo* barInfo);
 			status_t				_CacheTeamIcon(BarTeamInfo* barInfo, int32 size);
 			status_t				_CacheWindowIcon(WindowIconCache* winCache);
