@@ -216,7 +216,8 @@ void
 DefaultDecorator::GetRoundedShape(std::vector<ShapeRect>& shape) const
 {
 	GetShape(shape);
-	RoundedDecorator::RoundShape(shape, fTopTab->look, kFrameCornerRadius,
+	RoundedDecorator::RoundShape(shape, fTopTab->look, fTopTab->flags,
+		const_cast<DefaultDecorator*>(this)->GetDesktop(), kFrameCornerRadius,
 		kTabCornerRadius);
 }
 
@@ -250,6 +251,12 @@ DefaultDecorator::_DrawFrameCorners(BRect rect)
 	_GetComponentColors(COMPONENT_TOP_BORDER, top, fTopTab);
 	ComponentColors bottom;
 	_GetComponentColors(COMPONENT_BOTTOM_BORDER, bottom, fTopTab);
+	if (fTopTab->look == B_BORDERED_WINDOW_LOOK) {
+		// one colour all round, as _DrawFrame() draws it
+		ComponentColors border;
+		_GetComponentColors(COMPONENT_LEFT_BORDER, border, fTopTab);
+		top[0] = bottom[5] = border[5];
+	}
 
 	const int32 leftTop = (int32)frame.leftTop;
 	const int32 rightTop = (int32)frame.rightTop;

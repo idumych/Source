@@ -41,6 +41,15 @@ public:
 									window_look look, int32 frameRadius,
 									int32 tabRadius);
 
+	// The same, and a bordered window with B_ROUNDED_WINDOW in its flags is
+	// rounded too, more than a window's frame, except where it lies on the
+	// edge of the screen.
+	static	void				RoundShape(
+									std::vector<Decorator::ShapeRect>& shape,
+									window_look look, uint32 flags,
+									Desktop* desktop, int32 frameRadius,
+									int32 tabRadius);
+
 	static	void				StrokeCorners(DrawingEngine* engine,
 									const Decorator::ShapeRect& shape,
 									rgb_color leftTop, rgb_color rightTop,

@@ -15,6 +15,10 @@
 #include "DrawingEngine.h"
 
 
+// WindowShape's largest corner
+static const int32 kPanelCornerRadius = 16;
+
+
 RoundedDecorator::~RoundedDecorator()
 {
 }
@@ -67,6 +71,37 @@ RoundedDecorator::RoundShape(std::vector<Decorator::ShapeRect>& shape,
 				frame.rightTop = 0;
 		}
 	}
+}
+
+
+/*static*/ void
+RoundedDecorator::RoundShape(std::vector<Decorator::ShapeRect>& shape,
+	window_look look, uint32 flags, Desktop* desktop, int32 frameRadius,
+	int32 tabRadius)
+{
+	if (look != B_BORDERED_WINDOW_LOOK || (flags & B_ROUNDED_WINDOW) == 0
+		|| desktop == NULL) {
+		RoundShape(shape, look, frameRadius, tabRadius);
+		return;
+	}
+
+	// A panel is rounder than a window's frame: as round as the compositor
+	// cuts corners.
+	frameRadius = kPanelCornerRadius;
+
+	// A corner on the edge of the screen stays square: a panel along an edge
+	// is rounded where it meets the desktop.
+	const BRect screen = desktop->VirtualScreen().Frame();
+	Decorator::ShapeRect& frame = shape[0];
+	const BRect& border = frame.rect;
+	const bool left = border.left <= screen.left;
+	const bool top = border.top <= screen.top;
+	const bool right = border.right >= screen.right;
+	const bool bottom = border.bottom >= screen.bottom;
+	frame.leftTop = left || top ? 0 : frameRadius;
+	frame.rightTop = right || top ? 0 : frameRadius;
+	frame.leftBottom = left || bottom ? 0 : frameRadius;
+	frame.rightBottom = right || bottom ? 0 : frameRadius;
 }
 
 
