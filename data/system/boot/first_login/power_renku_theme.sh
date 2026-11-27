@@ -1,6 +1,7 @@
 #!/bin/sh
 
-# Power Renku starts out in Power Theme's Tidy Renku Light theme, which needs
+# Power Renku starts out in Power Theme's Renku theme, all of it but its
+# Deskbar position, so the Deskbar stays along the bottom. The theme needs
 # Tracker to be up for its wallpaper. Its window borders and controls are
 # built once, as a decorator style and a control look on
 # create_default_control_look(), so they keep working across updates. Power
@@ -13,5 +14,6 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
 	sleep 1
 done
 
-"$powertheme" --apply="Tidy Renku Light" > /dev/dprintf 2>&1
+"$powertheme" --apply="Renku" --parts=decorator,controls,colors,fonts,icons \
+	> /dev/dprintf 2>&1
 "$powertheme" --restart-tracker > /dev/dprintf 2>&1
