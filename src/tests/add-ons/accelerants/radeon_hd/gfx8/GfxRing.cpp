@@ -12,6 +12,7 @@
 
 
 #include "Steps.h"
+#include "RingInternal.h"
 
 #include <new>
 #include <string.h>
@@ -111,13 +112,6 @@ wb(Ring& ring, uint32 index)
 }
 
 
-static inline uint32
-ring_mask(const Ring& ring)
-{
-	return ring.buffer.size / 4 - 1;
-}
-
-
 // Writes a register and logs its old and new value.
 static void
 write_logged(Gpu& gpu, const char* name, uint32 reg, uint32 value)
@@ -158,7 +152,7 @@ program_register_sequence(Gpu& gpu, const char* name, const uint32* table,
 
 // CPU writes through the BAR go through the HDP; make them visible to the
 // GPU (vi_flush_hdp) or drop stale HDP read data (vi_invalidate_hdp).
-static void
+void
 flush_hdp(Gpu& gpu)
 {
 	__sync_synchronize();
@@ -167,7 +161,7 @@ flush_hdp(Gpu& gpu)
 }
 
 
-static void
+void
 invalidate_hdp(Gpu& gpu)
 {
 	gpu.Write(mmHDP_DEBUG0, 1);
@@ -175,7 +169,7 @@ invalidate_hdp(Gpu& gpu)
 }
 
 
-static void
+void
 dump_state(Gpu& gpu, Ring& ring, const char* why)
 {
 	Log("gfx: --- state: %s ---", why);
@@ -238,7 +232,7 @@ wait_memory(Gpu& gpu, volatile uint32* address, uint32 value,
 
 
 // Waits until `count` dwords (plus the commit padding) fit in the ring.
-static status_t
+status_t
 ring_alloc(Gpu& gpu, Ring& ring, uint32 count)
 {
 	uint32 size = ring.buffer.size / 4;
@@ -262,17 +256,9 @@ ring_alloc(Gpu& gpu, Ring& ring, uint32 count)
 }
 
 
-static inline void
-ring_write(Ring& ring, uint32 value)
-{
-	((volatile uint32*)ring.buffer.cpu)[ring.wptr] = value;
-	ring.wptr = (ring.wptr + 1) & ring_mask(ring);
-}
-
-
 // Pads to the ring's alignment with NOPs (amdgpu_ring_commit), then hands
 // the new wptr to the CP (gfx_v8_0_ring_set_wptr_gfx, without doorbell).
-static void
+void
 ring_commit(Gpu& gpu, Ring& ring)
 {
 	uint32 count = (kRingAlignMask + 1 - (ring.wptr & kRingAlignMask))
@@ -376,7 +362,7 @@ emit_fence(Ring& ring, uint64 address, uint32 sequence)
 
 
 // Emits a fence, commits and waits for it.
-static status_t
+status_t
 fence_and_wait(Gpu& gpu, Ring& ring, const char* what)
 {
 	status_t status = ring_alloc(gpu, ring, 12);

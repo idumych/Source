@@ -13,6 +13,8 @@ SimpleTest gfx8test :
 	Probe.cpp
 	Smu8.cpp
 	GfxRing.cpp
+	Draw.cpp
+	Shaders.cpp
 	Diagnose.cpp
 	main.cpp
 	:

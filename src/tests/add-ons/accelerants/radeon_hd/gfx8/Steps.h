@@ -51,6 +51,13 @@ status_t TestFill(Gpu& gpu, Ring& ring, uint32 x, uint32 y, uint32 width,
 status_t TestCopy(Gpu& gpu, Ring& ring, uint32 srcX, uint32 srcY,
 	uint32 dstX, uint32 dstY, uint32 width, uint32 height);
 
+// Draw.cpp: draws an upright filled triangle in the square (x, y, size) of
+// the visible frame buffer with the 3D pipeline (a vertex and a pixel
+// shader, DRAW_INDEX_AUTO), then checks a pixel inside it (must be `color`,
+// a B_RGB32 value) and one outside it (must be unchanged) through the CPU.
+status_t TestTriangle(Gpu& gpu, Ring& ring, uint32 x, uint32 y, uint32 size,
+	uint32 color);
+
 
 }	// namespace gfx8
 

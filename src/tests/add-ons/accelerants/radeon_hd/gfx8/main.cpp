@@ -21,6 +21,8 @@ using namespace gfx8;
 static const uint32 kFillWidth = 200;
 static const uint32 kFillHeight = 120;
 static const uint32 kFireOrange = 0xffff6a13;	// B_RGB32
+static const uint32 kTriangleSize = 120;
+static const uint32 kTriangleGreen = 0xff00c853;	// B_RGB32
 
 
 static void
@@ -101,6 +103,26 @@ copy(Gpu& gpu, Ring& ring, uint32 bitsPerPixel)
 }
 
 
+// Draws a triangle with the 3D engine in the free space to the right of the
+// orange rectangle.
+static status_t
+triangle(Gpu& gpu, Ring& ring, uint32 bitsPerPixel)
+{
+	if (bitsPerPixel != 32) {
+		Log("triangle: %" B_PRIu32 " bits per pixel is not supported",
+			bitsPerPixel);
+		return B_NOT_SUPPORTED;
+	}
+	uint32 x = (gpu.Width() - kFillWidth) / 2 + kFillWidth + 16;
+	uint32 y = (gpu.Height() - kFillHeight) / 2;
+	if (x + kTriangleSize > gpu.Width() || y + kTriangleSize > gpu.Height())
+		return B_BAD_VALUE;
+	Log("triangle: size %" B_PRIu32 " at %" B_PRIu32 ",%" B_PRIu32
+		", color %#010" B_PRIx32, kTriangleSize, x, y, kTriangleGreen);
+	return TestTriangle(gpu, ring, x, y, kTriangleSize, kTriangleGreen);
+}
+
+
 int
 main(int argc, char** argv)
 {
@@ -120,11 +142,11 @@ main(int argc, char** argv)
 
 	enum {
 		kInit, kProbe, kSmu, kStartGfx, kTestRing, kTestFence, kTestFill,
-		kTestCopy, kStepCount
+		kTestCopy, kTestTriangle, kStepCount
 	};
 	static const char* kNames[kStepCount] = {
 		"init", "probe", "load firmware through smu", "start gfx",
-		"test ring", "test fence", "test fill", "test copy"
+		"test ring", "test fence", "test fill", "test copy", "test triangle"
 	};
 	int stepCount = probeOnly ? kProbe + 1 : kStepCount;
 
@@ -155,6 +177,9 @@ main(int argc, char** argv)
 				break;
 			case kTestCopy:
 				status = copy(gpu, ring, gpu.BitsPerPixel());
+				break;
+			case kTestTriangle:
+				status = triangle(gpu, ring, gpu.BitsPerPixel());
 				break;
 		}
 
