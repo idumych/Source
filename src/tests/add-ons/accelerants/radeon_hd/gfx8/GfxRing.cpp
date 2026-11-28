@@ -34,6 +34,13 @@ namespace gfx8 {
 
 
 // REG_SET_FIELD for a value built from zero or read before.
+// Not in our gmc_8_1 headers; from Linux's gmc/gmc_8_2_d.h and
+// gfx_v8_0.c.
+static const uint32 kMcFusDram0BankAddrMapping = 0xa11;
+static const uint32 kMcFusDram1BankAddrMapping = 0xa12;
+static const uint32 kCarrizoGbAddrConfigGolden = 0x22010001;
+
+
 #define SET_FIELD(value, reg, field, x) \
 	(((value) & ~reg##__##field##_MASK) \
 		| (((uint32)(x) << reg##__##field##__SHIFT) & reg##__##field##_MASK))
@@ -423,13 +430,25 @@ constants_init(Gpu& gpu)
 	WRITE_LOGGED(gpu, GRBM_CNTL, SET_FIELD(gpu.Read(mmGRBM_CNTL), GRBM_CNTL,
 		READ_TIMEOUT, 0xff));
 
-	// GB_ADDR_CONFIG: Linux starts from CARRIZO_GB_ADDR_CONFIG_GOLDEN and
-	// fixes ROW_SIZE from MC_FUS_DRAM*_BANK_ADDR_MAPPING, which our headers
-	// lack. The golden common table already wrote 0x12010001 (ROW_SIZE 1,
-	// 2 KB); keep it. Only tiled surfaces care, and we use none.
-	// HDP_ADDR_CONFIG and DMIF_ADDR_CALC stay as radeon_hd left them.
-	Log("gfx: GB_ADDR_CONFIG 0x%08" B_PRIx32 " (kept), HDP_ADDR_CONFIG 0x%08"
-		B_PRIx32 " (not touched)", gpu.Read(mmGB_ADDR_CONFIG),
+	// GB_ADDR_CONFIG as gfx_v8_0_gpu_early_init computes it for APUs:
+	// CARRIZO_GB_ADDR_CONFIG_GOLDEN with ROW_SIZE from the DIMM address maps,
+	// 2 KB if any DIMM maps 8 GB (map 11), else 1 KB. Only tiled surfaces
+	// depend on it. Linux also writes it to HDP_ADDR_CONFIG and
+	// DMIF_ADDR_CALC; those stay as radeon_hd left them, since the display
+	// is running from them.
+	uint32 maps[2] = { gpu.Read(kMcFusDram0BankAddrMapping),
+		gpu.Read(kMcFusDram1BankAddrMapping) };
+	uint32 rowSize = 0;		// 1 KB
+	for (int i = 0; i < 2; i++) {
+		if ((maps[i] & 0xf) == 11 || ((maps[i] >> 4) & 0xf) == 11)
+			rowSize = 1;	// 2 KB
+	}
+	uint32 addrConfig = SET_FIELD(kCarrizoGbAddrConfigGolden, GB_ADDR_CONFIG,
+		ROW_SIZE, rowSize);
+	Log("gfx: MC_FUS_DRAM0/1_BANK_ADDR_MAPPING 0x%08" B_PRIx32 " 0x%08"
+		B_PRIx32 ": row size %u KB", maps[0], maps[1], 1u << rowSize);
+	WRITE_LOGGED(gpu, GB_ADDR_CONFIG, addrConfig);
+	Log("gfx: HDP_ADDR_CONFIG 0x%08" B_PRIx32 " (not touched)",
 		gpu.Read(mmHDP_ADDR_CONFIG));
 
 	uint32 value = SET_FIELD(0, SH_STATIC_MEM_CONFIG, SWIZZLE_ENABLE, 1);

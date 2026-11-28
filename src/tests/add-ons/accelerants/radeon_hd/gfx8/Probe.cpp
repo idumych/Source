@@ -393,8 +393,8 @@ ProbeGfx(Gpu& gpu)
 	uint32 addrConfig = gpu.Read(mmGB_ADDR_CONFIG);
 	Log("gfx: GB_ADDR_CONFIG %#010" B_PRIx32 ": %" B_PRIu32 " pipes, %"
 		B_PRIu32 " shader engines, pipe interleave %" B_PRIu32 " bytes, "
-		"row size %" B_PRIu32 " KB (Linux's golden value for Stoney is "
-		"0x22010001)", addrConfig,
+		"row size %" B_PRIu32 " KB (as the firmware left it; start gfx sets "
+		"it as Linux does)", addrConfig,
 		1u << Field(addrConfig, GB_ADDR_CONFIG__NUM_PIPES_MASK),
 		Field(addrConfig, GB_ADDR_CONFIG__NUM_SHADER_ENGINES_MASK) + 1,
 		256u << Field(addrConfig, GB_ADDR_CONFIG__PIPE_INTERLEAVE_SIZE_MASK),
