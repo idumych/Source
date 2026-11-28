@@ -1,0 +1,6 @@
+AMD register and firmware-interface headers for GFX8 (Stoney Ridge), copied
+unchanged from Linux v6.12, drivers/gpu/drm/amd (include/asic_reg/..., include/,
+amdgpu/vid.h, amdgpu/clearstate_*.h, pm/powerplay/inc/...).
+
+Ported-from: Linux v6.12, https://github.com/torvalds/linux/tree/v6.12/drivers/gpu/drm/amd
+Ported-from-license: MIT (Advanced Micro Devices, Inc.; the notice is kept in each file)

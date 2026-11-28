@@ -1,0 +1,19 @@
+SubDir HAIKU_TOP src tests add-ons accelerants radeon_hd gfx8 ;
+
+# gfx8test: a userland bring-up test for the 3D engine of AMD GFX8 APUs
+# (Stoney Ridge), on top of radeon_hd.
+
+SubDirHdrs $(HAIKU_TOP) src tests add-ons accelerants radeon_hd gfx8 amd ;
+UsePrivateHeaders graphics ;
+UsePrivateHeaders [ FDirName graphics common ] ;
+UsePrivateHeaders [ FDirName graphics radeon_hd ] ;
+
+SimpleTest gfx8test :
+	Gpu.cpp
+	Probe.cpp
+	Smu8.cpp
+	GfxRing.cpp
+	main.cpp
+	:
+	be [ TargetLibsupc++ ]
+	;
