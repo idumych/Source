@@ -13,6 +13,7 @@ SimpleTest gfx8test :
 	Probe.cpp
 	Smu8.cpp
 	GfxRing.cpp
+	Diagnose.cpp
 	main.cpp
 	:
 	be [ TargetLibsupc++ ]
