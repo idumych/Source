@@ -965,4 +965,92 @@ TestFill(Gpu& gpu, Ring& ring, uint32 x, uint32 y, uint32 width,
 }
 
 
+status_t
+TestCopy(Gpu& gpu, Ring& ring, uint32 srcX, uint32 srcY, uint32 dstX,
+	uint32 dstY, uint32 width, uint32 height)
+{
+	// Assumes 32 bits per pixel, like TestFill.
+	uint32 bytesPerRow = gpu.BytesPerRow();
+	if (width == 0 || height == 0
+		|| srcX + width > gpu.Width() || dstX + width > gpu.Width()
+		|| srcY + height > gpu.Height() || dstY + height > gpu.Height()
+		|| (srcY < dstY + height && dstY < srcY + height
+			&& srcX < dstX + width && dstX < srcX + width)) {
+		Log("gfx: copy: bad rectangle");
+		return B_BAD_VALUE;
+	}
+	uint32 rowBytes = width * 4;
+	Log("gfx: copy: %" B_PRIu32 "x%" B_PRIu32 " from (%" B_PRIu32 ", %"
+		B_PRIu32 ") to (%" B_PRIu32 ", %" B_PRIu32 ")", width, height, srcX,
+		srcY, dstX, dstY);
+
+	// What app_server drew went in through the BAR; let the GPU see it.
+	flush_hdp(gpu);
+
+	// One DMA_DATA per row, memory to memory (SRC_SEL 0, DST_SEL 0).
+	static const uint32 kRowsPerCommit = 128;
+	for (uint32 row = 0; row < height; row++) {
+		if (row % kRowsPerCommit == 0) {
+			status_t status = ring_alloc(gpu, ring, kRowsPerCommit * 7);
+			if (status != B_OK) {
+				dump_state(gpu, ring, "copy: ring stuck");
+				return status;
+			}
+		}
+		uint64 source = gpu.FrameBufferGpu()
+			+ (uint64)(srcY + row) * bytesPerRow + srcX * 4;
+		uint64 destination = gpu.FrameBufferGpu()
+			+ (uint64)(dstY + row) * bytesPerRow + dstX * 4;
+		ring_write(ring, PACKET3(PACKET3_DMA_DATA, 5));
+		ring_write(ring, PACKET3_DMA_DATA_ENGINE(0)
+			| PACKET3_DMA_DATA_DST_SEL(0) | PACKET3_DMA_DATA_SRC_SEL(0)
+			| PACKET3_DMA_DATA_CP_SYNC);
+		ring_write(ring, (uint32)source);
+		ring_write(ring, (uint32)(source >> 32));
+		ring_write(ring, (uint32)destination);
+		ring_write(ring, (uint32)(destination >> 32));
+		ring_write(ring, rowBytes);
+		if (row % kRowsPerCommit == kRowsPerCommit - 1 || row == height - 1)
+			ring_commit(gpu, ring);
+	}
+
+	bigtime_t start = system_time();
+	status_t status = fence_and_wait(gpu, ring, "copy");
+	if (status != B_OK) {
+		dump_state(gpu, ring, "copy: fence");
+		return status;
+	}
+	Log("gfx: copy: %" B_PRIu32 " rows done in %" B_PRId64 " us (from the "
+		"last commit)", height, system_time() - start);
+
+	// Compare every row through the CPU.
+	invalidate_hdp(gpu);
+	uint8* frameBuffer = (uint8*)gpu.FrameBuffer();
+	uint32 badRows = 0;
+	uint32 firstBad = 0;
+	for (uint32 row = 0; row < height; row++) {
+		const volatile uint32* a = (const volatile uint32*)(frameBuffer
+			+ (size_t)(srcY + row) * bytesPerRow + srcX * 4);
+		const volatile uint32* b = (const volatile uint32*)(frameBuffer
+			+ (size_t)(dstY + row) * bytesPerRow + dstX * 4);
+		for (uint32 i = 0; i < width; i++) {
+			if (a[i] != b[i]) {
+				if (badRows++ == 0)
+					firstBad = row;
+				break;
+			}
+		}
+	}
+	if (badRows != 0) {
+		Log("gfx: copy: %" B_PRIu32 " of %" B_PRIu32 " rows differ, first "
+			"row %" B_PRIu32 " (the source may have been redrawn meanwhile)",
+			badRows, height, firstBad);
+		dump_state(gpu, ring, "copy: rows differ after the fence");
+		return B_ERROR;
+	}
+	Log("gfx: copy passed, all %" B_PRIu32 " rows match", height);
+	return B_OK;
+}
+
+
 }	// namespace gfx8

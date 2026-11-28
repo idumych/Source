@@ -46,6 +46,11 @@ status_t TestFence(Gpu& gpu, Ring& ring);
 status_t TestFill(Gpu& gpu, Ring& ring, uint32 x, uint32 y, uint32 width,
 	uint32 height, uint32 color);
 
+// Copies a rectangle of the visible frame buffer to another place on it with
+// CP DMA, then compares the two through the CPU. They must not overlap.
+status_t TestCopy(Gpu& gpu, Ring& ring, uint32 srcX, uint32 srcY,
+	uint32 dstX, uint32 dstY, uint32 width, uint32 height);
+
 
 }	// namespace gfx8
 

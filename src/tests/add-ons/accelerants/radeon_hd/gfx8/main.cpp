@@ -81,6 +81,26 @@ fill(Gpu& gpu, Ring& ring, uint32 bitsPerPixel)
 }
 
 
+// Copies the top right corner of the screen (the Deskbar, which stays still
+// unlike the Terminal) to just below the orange rectangle, so the copy shows
+// something more than one colour.
+static status_t
+copy(Gpu& gpu, Ring& ring, uint32 bitsPerPixel)
+{
+	if (bitsPerPixel != 32) {
+		Log("copy: %" B_PRIu32 " bits per pixel is not supported",
+			bitsPerPixel);
+		return B_NOT_SUPPORTED;
+	}
+	uint32 x = (gpu.Width() - kFillWidth) / 2 & ~1u;
+	uint32 y = (gpu.Height() - kFillHeight) / 2 + kFillHeight + 16;
+	if (y + kFillHeight > gpu.Height())
+		return B_BAD_VALUE;
+	return TestCopy(gpu, ring, gpu.Width() - kFillWidth, 0, x, y, kFillWidth,
+		kFillHeight);
+}
+
+
 int
 main(int argc, char** argv)
 {
@@ -100,11 +120,11 @@ main(int argc, char** argv)
 
 	enum {
 		kInit, kProbe, kSmu, kStartGfx, kTestRing, kTestFence, kTestFill,
-		kStepCount
+		kTestCopy, kStepCount
 	};
 	static const char* kNames[kStepCount] = {
 		"init", "probe", "load firmware through smu", "start gfx",
-		"test ring", "test fence", "test fill"
+		"test ring", "test fence", "test fill", "test copy"
 	};
 	int stepCount = probeOnly ? kProbe + 1 : kStepCount;
 
@@ -132,6 +152,9 @@ main(int argc, char** argv)
 				break;
 			case kTestFill:
 				status = fill(gpu, ring, gpu.BitsPerPixel());
+				break;
+			case kTestCopy:
+				status = copy(gpu, ring, gpu.BitsPerPixel());
 				break;
 		}
 
